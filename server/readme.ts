@@ -9,7 +9,8 @@ const REPO = "https://github.com/comp4020-agentic-coding-studio/comp4020-final-u
 // on GitHub; images stay relative and are served from /readme/doc/.
 function linkToRepo(href: string): string {
   if (/^([a-z]+:|\/|#)/i.test(href) || /\.(png|jpe?g|gif|svg|webp)$/i.test(href)) return href;
-  return `${REPO}/blob/main/${href.replace(/^\.\//, "")}`;
+  const path = href.replace(/^\.\//, "");
+  return `${REPO}/${path.endsWith("/") ? "tree" : "blob"}/main/${path}`;
 }
 
 export function renderReadme(path = "README.md"): string {
