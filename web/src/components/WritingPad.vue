@@ -129,16 +129,16 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
     <p v-if="full" class="note">That's as much ink as one character can hold.</p>
     <p v-if="problem" class="problem" role="alert">{{ problem }}</p>
 
-    <div class="tools">
-      <label class="toggle"><input type="checkbox" v-model="guide" /> Show model character</label>
-      <button type="button" @click="undo" :disabled="!strokes.length || sending">Undo stroke</button>
-      <button type="button" @click="clear" :disabled="!strokes.length || sending">Clear</button>
-    </div>
     <div class="actions">
       <button type="button" class="quiet" @click="emit('putDown')" :disabled="sending">Put the brush down</button>
       <button type="button" class="primary" @click="emit('submit', strokes)" :disabled="!strokes.length || sending">
         {{ sending ? "Adding to the scroll…" : "Add to the scroll" }}
       </button>
+    </div>
+    <div class="tools">
+      <label class="toggle"><input type="checkbox" v-model="guide" /> Show model character</label>
+      <button type="button" @click="undo" :disabled="!strokes.length || sending">Undo stroke</button>
+      <button type="button" @click="clear" :disabled="!strokes.length || sending">Clear</button>
     </div>
   </section>
 </template>
@@ -172,7 +172,7 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
   color: var(--seal);
 }
 .pad {
-  width: min(100%, 26rem, 58vh);
+  width: min(100%, 26rem, 52vh);
   aspect-ratio: 1;
   justify-self: center;
   background: #fbf7ec;
