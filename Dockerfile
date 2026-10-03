@@ -1,18 +1,35 @@
 # syntax = docker/dockerfile:1
 
-# A placeholder, and yours to replace: it serves one page, plus README.md
-# verbatim at /readme/, which is enough to prove the deploy path end to end.
-# Whatever your app is built with, the image that replaces this one must serve
-# HTTP on 0.0.0.0:$PORT (fly.toml sets PORT) and publish README.md at /readme/
-# (spec/README.md says what's checked).
+# One Node process serves everything: the API, the live SSE streams, the built
+# Vue client and README.md at /readme/. The server is TypeScript run directly
+# by Node (type stripping), so only the client has a build step. The SQLite
+# database lives at $DATA_DIR, which is the Fly volume (/data); migrations run
+# when the server boots. Fixed by the course: serve HTTP on 0.0.0.0:$PORT, and
+# fit in 256 MB. See doc/adr/0001-vue-node-sqlite-sse.md for why this stack.
 
-FROM docker.io/library/busybox:1.38.0
-COPY placeholder/ /src/
-COPY README.md /src/
-# README.md goes into the page as-is, HTML-escaped, in place of @README@;
-# rendering it properly is your app's job
-RUN mkdir -p /site/readme \
-    && cp /src/index.html /site/ \
-    && sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' /src/README.md > /src/body \
-    && sed -e '/@README@/{r /src/body' -e 'd}' /src/readme.html > /site/readme/index.html
-CMD ["sh", "-c", "exec httpd -f -p 0.0.0.0:${PORT:-8080} -h /site"]
+FROM docker.io/library/node:24-slim AS base
+RUN npm install -g pnpm@11.9.0
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# the Vue client, built to dist/
+FROM base AS build
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm build
+
+# runtime dependencies only
+FROM base AS deps
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts
+
+FROM docker.io/library/node:24-slim
+WORKDIR /app
+ENV NODE_ENV=production DATA_DIR=/data
+COPY --from=deps /app/node_modules node_modules
+COPY --from=build /app/dist dist
+COPY package.json README.md ./
+COPY server server
+COPY shared shared
+COPY doc doc
+# headroom under the machine's 256 MB, so the GC works before the OOM killer does
+CMD ["node", "--max-old-space-size=160", "server/main.ts"]

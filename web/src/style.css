@@ -1,0 +1,131 @@
+:root {
+  color-scheme: light;
+  --ink: #1d1b19;
+  --paper: #f5eedd;
+  --paper-deep: #efe4c9;
+  --mount: #6b4e2e;
+  --seal: #b3261e;
+  --muted: #6b6257;
+  --rule: #d8ccb4;
+  --brush-font: "Kaiti SC", "STKaiti", "KaiTi", "BiauKai", "AR PL UKai CN", "Noto Serif CJK SC", "Songti SC", serif;
+  font: 1rem/1.5 "Iowan Old Style", "Palatino Linotype", Palatino, "Songti SC", "Noto Serif CJK SC", serif;
+  background: var(--paper);
+  color: var(--ink);
+}
+body {
+  margin: 0;
+}
+#app {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 clamp(0.75rem, 3vw, 2rem) 3rem;
+}
+.skip {
+  position: absolute;
+  left: -999px;
+}
+.skip:focus {
+  left: 1rem;
+  top: 1rem;
+  z-index: 10;
+  background: var(--paper);
+  padding: 0.5rem;
+}
+.site {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 1.25rem;
+}
+.brand {
+  display: inline-flex;
+  gap: 0.6rem;
+  align-items: center;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.brand-seal {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  background: var(--seal);
+  color: var(--paper);
+  border-radius: 3px;
+  font-family: var(--brush-font);
+  font-size: 1.3rem;
+}
+.zh {
+  font-family: var(--brush-font);
+  font-weight: 400;
+  color: var(--muted);
+}
+nav {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+}
+a {
+  color: var(--seal);
+}
+.who {
+  color: var(--muted);
+}
+main:focus {
+  outline: none;
+}
+button {
+  font: inherit;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: #fbf7ec;
+  color: var(--ink);
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+button.primary {
+  background: var(--seal);
+  border-color: var(--seal);
+  color: #fff;
+}
+button.quiet {
+  background: transparent;
+}
+button.link {
+  border: none;
+  background: none;
+  color: var(--seal);
+  text-decoration: underline;
+  padding: 0 0.25rem;
+}
+input {
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+  background: #fffdf6;
+}
+:focus-visible {
+  outline: 3px solid var(--seal);
+  outline-offset: 2px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

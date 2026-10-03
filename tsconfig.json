@@ -1,6 +1,8 @@
 {
-  // Covers the supplied harness (spec/, scripts/); widen `include` if your app
-  // is TypeScript and you want `pnpm typecheck` to cover it too.
+  // Covers the harness (spec/, scripts/), the server and the code it shares
+  // with the client. The server runs as-is under Node's type stripping, so
+  // only erasable syntax is allowed (no enums, no parameter properties).
+  // The Vue client has its own web/tsconfig.json, checked by vue-tsc.
   "compilerOptions": {
     "target": "ES2023",
     "module": "ESNext",
@@ -14,7 +16,8 @@
     "noEmit": true,
     "skipLibCheck": true,
     "moduleDetection": "force",
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true
   },
-  "include": ["*.ts", "spec", "scripts"]
+  "include": ["*.ts", "spec", "scripts", "server", "shared"]
 }
