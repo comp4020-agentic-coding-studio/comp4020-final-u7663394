@@ -1,10 +1,80 @@
-# Your harness
+# Calligraphy Relay: rules for working on this repo
 
-This file is yours, and it arrives empty on purpose. The rules you hold the
-agent to are part of what gets marked, so they should be rules you decided on.
+`README.md` is the argument: what good means for this app. This file is the
+rules that follow from it, and `spec/` is the checks. A change that breaks one
+of them is wrong even if it works. If a rule here stops making sense, say so and
+change the README first, then this file and the spec.
 
-Nothing about the template is recorded here. What the repo ships is explained
-where it lives --- `fly.toml`, the `Dockerfile`, the CI workflow and
-`spec/README.md` each say what they fix --- and the course website publishes the
-[final project brief](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/assessments/final-project/).
-What the agent needs to carry from any of it is your call.
+Read before touching the stack, storage, data model or transport:
+`doc/adr/`. Decisions change only by writing a new, numbered ADR that
+supersedes the old one; an accepted ADR is never edited.
+
+## What the app must never do
+
+- **Let one person write two characters in a row**, or let two people hold the
+  brush at once. Both are decided inside a SQLite transaction in
+  `server/relay.ts`, never only in the client.
+- **Alter a writer's strokes.** The server validates the shape and size of a
+  stroke list and stores it byte for byte. No smoothing, resampling,
+  simplifying or "cleaning up" on either side; `web/src/ink.ts` only *draws*
+  the stored points.
+- **Judge handwriting.** No scores, ratings, likes, rankings, recognition or
+  "correctness" feedback on a character, ever.
+- **Show a character without its writer**, or re-sign one: a glyph keeps the
+  `writer_name` it was written with, even after a rename.
+- **Lose a written character.** A write is answered only after its transaction
+  commits. A failed submit keeps the drawing on the pad (and in localStorage)
+  so the writer can retry.
+- **Grow accounts, feeds, chat, followers or free-text input** beyond a name
+  and a room slug. These are deliberately out of scope (README, "What it
+  deliberately leaves out"); propose a README change instead of building them.
+
+## What every page must hold to
+
+- Works at both marking viewports, 390×844 and 1920×1080, including a resize
+  in the middle of writing (pad coordinates are normalised per pointer event).
+- Every control is a real `<button>`, `<a>` or form field with a visible
+  `:focus-visible` style. Drawing needs a pointer; everything else works from
+  the keyboard.
+- Other people's actions reach the screen without a reload, and are announced
+  in the `aria-live` region. The connection state ("live" / "reconnecting…")
+  is always visible.
+- Text for people who don't read Chinese: pinyin, translation and the model
+  character accompany every character to be written.
+- Respect `prefers-reduced-motion`.
+
+## Architecture in one breath
+
+Vue 3 + TypeScript client in `web/` (Vite, built to `dist/`). One Node 24
+process (`server/main.ts`, TypeScript run directly, no build) with Hono serves
+the API, one SSE stream per room, `/readme/` (README rendered server-side) and
+the client. SQLite via `node:sqlite` at `$DATA_DIR/relay.db` (`/data` on Fly).
+Types shared by both sides live in `shared/`. The only in-memory state is who
+is connected (`server/hub.ts`); everything else is in the database.
+
+- The server runs under Node's type stripping: erasable TypeScript only (no
+  `enum`, no parameter properties, no `namespace`), and imports name the file
+  with its `.ts` extension.
+- Schema changes are a new entry appended to `MIGRATIONS` in `server/db.ts`;
+  never edit a shipped migration. Constraints the rules depend on belong in
+  the schema, not only in code.
+- Every new mutation broadcasts its event to the room *after* it commits.
+
+## Workflow
+
+- `pnpm check` runs against a running app: start one with
+  `DATA_DIR=/tmp/relay-dev pnpm start` (after `pnpm build`), never with the
+  default `data/` you care about. Spec tests that write use a fresh `spec-…`
+  room via `spec/helpers.ts`; keep it that way so the spec can never touch the
+  hall.
+- A README promise that can be tested gets a test in `spec/` in the same
+  change. A promise that can only be judged is listed as judged in the README.
+- When a bug gets past the spec, first add the check that would have caught it
+  and watch it fail, then fix (see `spec/pages.test.ts`).
+- Before saying a UI change works, look at it at both viewports in a real
+  browser, with two sessions side by side.
+- Commits: `scope: imperative description`, small and focused, staged by file
+  name, and only when `pnpm check` is green. Never push or deploy; the human
+  ships.
+- `PROCESS.md` is rewritten (not appended to) at each crit and cites commits
+  as links whose text is the hash; `pnpm check:evidence` must pass.

@@ -30,3 +30,22 @@ can judge; those are left to the crit and the marker.
 At a crit, a green `check` job is half the shipped mark, but it's never the
 judgement of the work: your tutor checks what you deployed against the published
 spec.
+
+## This app's checks
+
+Each file protects claims from the README's "What good means here". Every check
+that writes uses its own fresh `spec-…` room (`helpers.ts`), so the spec can run
+against the live app without touching the hall.
+
+| File | README claim | What it checks |
+| --- | --- | --- |
+| `relay.test.ts` | 1. The brush passes | nobody writes twice in a row; one brush holder; four people reaching at once get exactly one brush; no name, no brush |
+| `relay.test.ts` | 2. Ink is kept as drawn | strokes come back exactly as sent; malformed or oversized drawings are refused, never "fixed" |
+| `relay.test.ts` | 3. Every character is signed | each glyph carries its writer; a rename doesn't re-sign old characters |
+| `relay.test.ts` | 6. It leaves a trace | a finished scroll is kept with every writer named and the next begins; a returning browser is the same person |
+| `live.test.ts` | 4. The room sees it happen | a new character, and who holds the brush, reach another open session within a second; presence counts people, not tabs |
+| `persistence.test.ts` | 6. It leaves a trace | characters, writers, identities and the pass-the-brush rule survive the server being SIGKILLed and restarted on the same data directory |
+| `pages.test.ts` | (served at all) | `/`, `/r/…`, `/scroll/…` are the app's HTML page; added after a 200 that browsers downloaded passed the shipped check |
+
+Claim 5 (a stranger can join in ten seconds), and whether a scroll of mixed
+hands reads as one piece, are judged rather than checked; the README says how.
