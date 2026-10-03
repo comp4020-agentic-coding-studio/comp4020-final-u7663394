@@ -186,7 +186,9 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
       onFound: (_path, c) => c.header("Cache-Control", "public, max-age=31536000, immutable"),
     }),
   );
-  app.use("/*", serveStatic({ root: clientDir, index: "" }));
+  // Only named files: a catch-all here once served the dist/ directory itself
+  // for "/", as an octet-stream download (spec/pages.test.ts now checks).
+  app.use("/favicon.svg", serveStatic({ root: clientDir }));
   app.get("/assets/*", (c) => c.notFound());
   // Every other path is a page of the client: /, /r/<room>, /scroll/<id>.
   app.get("*", (c) => c.html(indexHtml));
