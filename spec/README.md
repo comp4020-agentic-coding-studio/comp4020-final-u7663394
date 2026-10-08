@@ -44,6 +44,7 @@ against the live app without touching the hall.
 | `relay.test.ts` | 3. Every character is signed | each glyph carries its writer; a rename doesn't re-sign old characters |
 | `relay.test.ts` | 6. It leaves a trace | a finished scroll is kept with every writer named and the next begins; a returning browser is the same person |
 | `live.test.ts` | 4. The room sees it happen | a new character, and who holds the brush, reach another open session within a second; presence counts people, not tabs |
+| `live.test.ts` | 4. The room sees it happen (live ink) | a stroke being drawn, and an undo, reach another session within a second exactly as drawn; a draft is never stored; only the brush holder, for the character they're on, can send one; malformed ink is refused |
 | `persistence.test.ts` | 6. It leaves a trace | characters, writers, identities and the pass-the-brush rule survive the server being SIGKILLed and restarted on the same data directory |
 | `pages.test.ts` | (served at all) | `/`, `/r/…`, `/scroll/…` are the app's HTML page; added after a 200 that browsers downloaded passed the shipped check |
 

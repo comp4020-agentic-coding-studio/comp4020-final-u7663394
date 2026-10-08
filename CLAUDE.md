@@ -22,6 +22,11 @@ supersedes the old one; an accepted ADR is never edited.
   "correctness" feedback on a character, ever.
 - **Show a character without its writer**, or re-sign one: a glyph keeps the
   `writer_name` it was written with, even after a rename.
+- **Keep or replay a draft.** Live ink (the brush holder's strokes while
+  they write, `doc/adr/0002-live-ink.md`) is relayed to the room and stored
+  nowhere, not in the database and not in memory. Only the character the
+  writer adds is kept. Watchers see the draft exactly as it is, undos
+  included; it is drawn by the same `web/src/ink.ts`, never tidied.
 - **Lose a written character.** A write is answered only after its transaction
   commits. A failed submit keeps the drawing on the pad (and in localStorage)
   so the writer can retry.
@@ -38,7 +43,9 @@ supersedes the old one; an accepted ADR is never edited.
   the keyboard.
 - Other people's actions reach the screen without a reload, and are announced
   in the `aria-live` region. The connection state ("live" / "reconnecting…")
-  is always visible.
+  is always visible. Live ink is the exception to announcing: picking up the
+  brush and adding a character are announced, single strokes are not.
+- Whoever holds the brush is told on the pad that the room is watching.
 - Text for people who don't read Chinese: pinyin, translation and the model
   character accompany every character to be written.
 - Respect `prefers-reduced-motion`.
@@ -47,10 +54,11 @@ supersedes the old one; an accepted ADR is never edited.
 
 Vue 3 + TypeScript client in `web/` (Vite, built to `dist/`). One Node 24
 process (`server/main.ts`, TypeScript run directly, no build) with Hono serves
-the API, one SSE stream per room, `/readme/` (README rendered server-side) and
-the client. SQLite via `node:sqlite` at `$DATA_DIR/relay.db` (`/data` on Fly).
-Types shared by both sides live in `shared/`. The only in-memory state is who
-is connected (`server/hub.ts`); everything else is in the database.
+the API, one SSE stream per room (brush, live ink, characters, presence),
+`/readme/` (README rendered server-side) and the client. SQLite via
+`node:sqlite` at `$DATA_DIR/relay.db` (`/data` on Fly). Types shared by both
+sides live in `shared/`. The only in-memory state is who is connected
+(`server/hub.ts`); everything else is in the database.
 
 - The server runs under Node's type stripping: erasable TypeScript only (no
   `enum`, no parameter properties, no `namespace`), and imports name the file
@@ -59,6 +67,9 @@ is connected (`server/hub.ts`); everything else is in the database.
   never edit a shipped migration. Constraints the rules depend on belong in
   the schema, not only in code.
 - Every new mutation broadcasts its event to the room *after* it commits.
+  Live ink is the one broadcast with no commit behind it: it is checked
+  synchronously against the brush holder, so a draft that arrives after its
+  character is refused, not shown late.
 
 ## Workflow
 
@@ -73,6 +84,10 @@ is connected (`server/hub.ts`); everything else is in the database.
   and watch it fail, then fix (see `spec/pages.test.ts`).
 - Before saying a UI change works, look at it at both viewports in a real
   browser, with two sessions side by side.
+- Browser network throttling doesn't slow events on an EventSource that is
+  already open, so a "slow connection" timing taken that way means nothing.
+  Delay the requests themselves (e.g. Playwright's `page.route`) and say which
+  side was slowed.
 - Commits: `scope: imperative description`, small and focused, staged by file
   name, and only when `pnpm check` is green. Never push or deploy; the human
   ships.
