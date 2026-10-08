@@ -13,7 +13,7 @@ The app is good when:
 1. **The brush passes.** Only one person can hold the brush at a time, and nobody can write two characters in a row.
 2. **Ink is kept as drawn.** Strokes are stored as the points made by the user's hand and shown in the same way on every screen. Nothing is scored, corrected or smoothed afterwards.
 3. **Every character is signed** with a red seal showing the name the writer used when they wrote it.
-4. **The room sees it happen.** Everyone watching can see who holds the brush, and a new character appears on every open screen within a second.
+4. **The room sees it happen.** Everyone watching sees who holds the brush and watches their strokes as they draw. A new character appears on every open screen within a second. Only the added character is kept, never the draft ([why](doc/adr/0002-live-ink.md)).
 5. **A stranger can join in ten seconds.** A name is the only sign-up needed. Pinyin, a translation and a faint model character mean that users do not need to know Chinese.
 6. **It leaves a trace.** Finished scrolls stay in their room, and when you come back tomorrow, the app still remembers who you are.
 
@@ -27,7 +27,7 @@ No accounts, feeds, followers, likes, chat, scores or rankings. Telephone games 
 
 ## Which claims are checked, and which are judged
 
-Claims 1--4 and 6 are checked by tests in [`spec/`](spec/) that run against the built app on every push. They check cases such as two people trying to take the brush at the same time, the same person writing twice, malformed strokes, strokes being returned exactly as they were sent, a new character reaching another session within a second, and all the data surviving after the server is killed. Claim 5, and whether different people's writing can still look like one scroll, need to be judged by real users. I can test this by watching people who have never used the app before try it at the crit, with a phone and a desktop side by side. How it was built is in [`PROCESS.md`](PROCESS.md) and [`doc/adr/`](doc/adr/).
+Claims 1--4 and 6 are checked by tests in [`spec/`](spec/) that run against the built app on every push: two people taking the brush at once, the same person writing twice, malformed strokes, strokes coming back exactly as sent, a character or a stroke being drawn reaching another session within a second, a draft never being stored, and all the data surviving the server being killed. Claim 5, whether different hands still look like one scroll, and whether being watched makes people afraid to write, need real users. I judge these by watching first-time users at the crit, with a phone and a desktop side by side. How it was built is in [`PROCESS.md`](PROCESS.md) and [`doc/adr/`](doc/adr/).
 
 ## Sources
 
