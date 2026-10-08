@@ -1,48 +1,50 @@
 # Process overview
 
-_Current as of crit 8 (week 9). Rewritten, not appended to, at each crit._
+_Current as of crit 9 (week 10). Rewritten, not appended to, at each crit._
 
 ## From the brief to an idea
 
-The brief asks for a multi-user, real-time site that is good, and warns us not to make the most common answer: a chat room with different nouns. My first idea was a shared drawing canvas, but I realised this was just the drawing version of the same common answer. Anyone could draw anywhere, and r/place showed that at a large scale this can become a fight over space. I wanted something where the group has to work together, so I chose a relay. One line of classical Chinese poetry is written one character at a time by different people, while each person's handwriting stays visible. I wrote this idea in `IDEA.md`
-([`9abbf52`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/9abbf52))
-before choosing any technology. This meant I could choose the stack based on the idea instead of changing the idea to fit the stack.
-
-## Directing the agent: the decisions I kept
-
-I gave Claude Code the brief, the crit 8 spec and `IDEA.md`. I told it to use Vue 3 + TypeScript for the frontend because I know this stack and can read and correct the code myself. Before writing code, it asked me three product questions. I made these decisions myself because each one affects what "good" means for the app:
-
-- **How strict is the relay?** I chose *pass the brush*: nobody can write two characters in a row, so one person cannot finish a scroll alone. A softer rule, such as unlocking the brush after one minute, would stop the app from getting stuck, but then the artwork would not really depend on the group. Allowing only one character per person would also cause a problem because a group of four could not finish a ten-character line.
-- **Where do people write?** There is a shared hall at `/`, plus named rooms (`/r/table-4`), so a large showcase crowd can split into different tables instead of everyone waiting for the same brush. Rooms also allow the spec to use temporary `spec-…` rooms without changing the real scroll.
-- **What is a person?** One person is one browser. A pseudonym is connected to a long-lived cookie, so the app still knows who you are when you return tomorrow. The downside is that two tabs in the same browser count as the same person. I accepted this, and the UI explains it when the same person wrote last.
-
-The README came first ([`2d5a9fc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/2d5a9fc)). Its six claims became rules in `CLAUDE.md` and checks in `spec`.
+My first idea was a shared drawing canvas, but that is just the drawing version of the chat room the brief warns about, and r/place showed that an open canvas becomes a fight over space. I wanted the group to have to work together, so I chose a relay: one line of classical Chinese poetry, written one character at a time by different people, with each person's handwriting kept. I wrote this in `IDEA.md` ([`9abbf52`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/9abbf52)) before choosing any technology, and the README came next ([`2d5a9fc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/2d5a9fc)). Its six claims became rules in `CLAUDE.md` and checks in `spec/`.
 
 ## Why this stack
 
-The full record is [ADR 0001](doc/adr/0001-vue-node-sqlite-sse.md)
-([`20dbce0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/20dbce0)). In short, the course gives us one 256 MB machine and one volume, and this app has very different amounts of reads and writes. Writes are rare because only one person writes at a time, while every write needs to be shown to everyone watching.
+The full record is [ADR 0001](doc/adr/0001-vue-node-sqlite-sse.md) ([`20dbce0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/20dbce0)). The course gives one 256 MB machine and one volume, and the app's traffic is lopsided: writes are rare because one person writes at a time, but every write has to reach everyone watching.
 
-- **SQLite on the volume** (through Node's built-in `node:sqlite`) rather than JSON files or Postgres. The important rules can be handled with database constraints and transactions: `PRIMARY KEY (scroll_id, position)`, a partial unique index that allows only one open scroll per room, and `BEGIN IMMEDIATE` around "take the brush". With JSON files, I would need to handle these rules in application code without the same atomicity. Postgres is outside the course setup, while SQLite's own guidance fits a small, single-writer site like this ([Appropriate Uses](https://www.sqlite.org/whentouse.html)). The database is
-stored on the volume, which is the only storage that survives a redeploy ([Fly Volumes](https://docs.fly.io/volumes/overview)). Migrations run when the app starts because Fly's release machine does not have access to the volume.
-- **Server-Sent Events plus POSTs** rather than WebSockets or polling. Every write already works as a normal request and response, so only updates to everyone watching need to be pushed. `EventSource` also reconnects by itself ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)), which is useful when users have slower connections. WebSockets would add a second protocol and I would need to handle reconnection myself, even though the app does not need much real-time data going back to the server.
-- **Hono on Node 24, TypeScript run directly** ([type stripping](https://nodejs.org/api/typescript.html)). The server does not need a build step, and each route is easy for me to read because it looks
-like a normal `fetch` handler. I also considered Phoenix LiveView, which provides many real-time features for me, but I would have to review code in a language that I do not normally use.
-- **perfect-freehand** draws the ink from the raw points on every client. The stored data keeps the writer's original hand movements, and every screen uses the same data to draw the result.
+- **SQLite on the volume** (`node:sqlite`), not JSON files or Postgres. The rules that matter live in constraints and transactions (one character per position, `BEGIN IMMEDIATE` around "take the brush"), which JSON files can't give me.
+- **Server-Sent Events plus ordinary requests**, not WebSockets or polling. Only the fan-out needs pushing, and `EventSource` reconnects by itself ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)).
+- **Vue 3 and Hono on Node 24, TypeScript run directly.** I can read and correct every line the agent writes. Phoenix LiveView would give me real-time for free, but in a language I don't write.
 
-The main cost is that one process cannot easily scale to multiple machines without changing the real-time transport. `node:sqlite` is also newer than `better-sqlite3`, although changing it would mostly be limited to `server/db.ts`.
+The cost is that one process can't scale past one machine, which fits the "one room, one table" scale the README argues for.
 
-## The harness: README -> CLAUDE.md -> spec
+## Directing the agent
 
-The first working version was built as one complete vertical slice ([`65e4d11`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/65e4d11)), with checks for the README claims written together with the code. These checks run against the real running app. They test two people trying to take the brush at the same time, the same person trying to write twice, strokes being returned exactly as they were sent, a character reaching another session within a second, and the server being killed with SIGKILL and restarted using the same data. To make sure the checks could really catch problems, I temporarily disabled the pass-the-brush rule. Two checks failed, and then I restored the rule.
+In crit 8 I made the product decisions myself before any code: *pass the brush* (nobody writes two in a row), rooms (`/r/table-4`) so a crowd can split up, and one browser = one person.
 
-However, the checks were all passing while the app was still broken. When I tested it using two real Chrome sessions at 390×844 and 1920×1080, `/` showed a blank page. The catch-all static handler was serving the `dist/` directory itself as an octet-stream, so the browser downloaded it instead of showing the page. The course's provided check only looks for a 200 response, so it did not find this problem. Before fixing the bug, I wrote `spec/pages.test.ts` and watched the new test fail against the broken server. Then I fixed the problem ([`0ff6c2c`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/0ff6c2c)). After this, "failing check first" became a rule in `CLAUDE.md` ([`7862797`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/7862797)). I also added a rule to test UI changes at both screen sizes in a real browser before saying they work. The same screenshots helped me find another problem: the submit button went off the bottom of the phone screen while the user was writing ([`327d528`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/327d528)).
+For crit 9 the app was already real-time (characters reached other screens in under a second, checked in `spec/live.test.ts`), so the work was the multi-user decision. My crit 8 notes had two candidates: what happens when thirty people want the brush, and whether watchers should see strokes while someone writes. Before writing any code, Claude Code laid out four options against my README and asked me to choose: live ink, a brush queue, the writer choosing who goes next, and a "since you were here" summary for returning visitors. I chose **live ink**, streamed continuously rather than one stroke at a time.
+
+My reason is claim 4, "the room sees it happen". In the crit 8 version a watcher looked at an empty square for up to three minutes and then the finished character appeared. When I tested two sessions side by side, the best part, someone's hand slowly making the character, only happened on one screen. A queue would be fairer in a big crowd, but at a table of three you would hardly notice it, and rooms already split crowds up. The full record, including the options I rejected, is [ADR 0002](doc/adr/0002-live-ink.md) ([`36c3712`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/36c3712)).
+
+The decision has a real cost against my own README. It says handwriting is never judged, and watching someone draft means seeing their false starts and undos. I didn't want to hide that, so I made two choices. The draft is relayed and **never stored**: only the character the writer adds is kept, so the scroll doesn't become a recording of mistakes. And the pad tells the writer that the room is watching. Storing the draft as a replay was the option I liked second, and it's the one I expect my pod to argue for.
+
+## Grounding: rules and checks first
+
+ADR 0001 had already said how to do live strokes if they became part of good: small batches over the same SSE stream, before reaching for WebSockets. So the agent built it that way. Following the `CLAUDE.md` rule, it wrote the new checks first, and four of the five failed with 404 before the endpoint existed (the fifth, "never stored", passes trivially without one). The checks cover a stroke reaching another session within a second, exactly as drawn; an undo showing up; a draft never being stored; and only the brush holder being able to send one. Then came the endpoint ([`c49d23f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/c49d23f)) and the client ([`a8fc3a2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/a8fc3a2)). The new rules ("never keep or replay a draft", "the writer is told") went into `CLAUDE.md` and the spec table ([`cdacd5b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/cdacd5b)), and claim 4 in the README now says what is and isn't kept ([`12872e0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/12872e0)).
+
+## Corrections
+
+The checks were green before the feature was right, like in crit 8 when `/` was a download every check passed ([`0ff6c2c`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/0ff6c2c)).
+
+- **Wrong copy.** The two-session screenshots showed the watcher panel still saying the character "appears the moment they finish", which live ink made untrue. Only looking at the page caught it.
+- **A gap for late joiners.** Killing the server mid-draft showed that after reconnecting, watchers saw nothing until the writer drew again, and the same is true for someone who arrives mid-draft. Keeping drafts on the server would break the rule that the only in-memory state is who is connected, so the writer's page resends its draft when its stream comes back or the number of people changes.
+- **A test result that meant nothing.** The first "slow connection" run said an undo reached a throttled watcher in 14 ms, which can't be right with 300 ms of latency. Chrome's throttling doesn't slow an EventSource that is already open. We re-ran it by holding every ink and character request for 400 ms instead, and that rule is now in `CLAUDE.md` so the mistake isn't repeated.
 
 ## How I know it works, and what I don't know yet
 
-- `pnpm check`: 20 checks are green, including tests against a copy of the runtime image with production dependencies only.
-- I tested two browser sessions side by side. One wrote a character on a phone-sized screen, including resizing the screen during a stroke, and the desktop session showed the new character 55 ms later.
+- `pnpm check`: 25 checks green against the built app, 5 of them new for live ink.
+- Scripted Chrome sessions (Playwright) at 1920×1080 and 390×844, side by side: the watcher saw a stroke while the pen was still down, an undo removed it, and the added character replaced the wet ink 34–50 ms after submit, with the pad resized mid-stroke. With the writer's requests held for 400 ms, the whole draft still arrived 517 ms after the pen went down. After a SIGKILL mid-draft the watcher showed "reconnecting…" and got the draft back without the writer drawing.
+
+What I can't test is whether being watched makes people afraid to write. If people at the crit freeze or keep clearing the pad, sending a stroke only when the pen lifts is the fallback.
 
 ## Next
 
-Crit 9 will focus on what happens when everyone uses the app at the same time. For example, I need to decide what should happen when thirty people want the brush in the same room: should there be a queue, or should each person have a shorter time to hold it? I also need to decide whether seeing strokes appear live while someone is writing should be part of what makes the app good. For Crit 10, I will improve the logging system beyond the current single `console.log` for each write.
+Crit 10 is logging. The server prints one line per character and nothing for ink, so I can't yet see what live ink costs in a busy room.
