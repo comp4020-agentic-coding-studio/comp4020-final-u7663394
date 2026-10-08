@@ -40,11 +40,7 @@ The checks were green before the feature was right, like in crit 8 when `/` was 
 
 ## How I know it works, and what I don't know yet
 
-- `pnpm check`: 25 checks green against the built app, 5 of them new for live ink.
-- Scripted Chrome sessions (Playwright) at 1920×1080 and 390×844, side by side: the watcher saw a stroke while the pen was still down, an undo removed it, and the added character replaced the wet ink 34–50 ms after submit, with the pad resized mid-stroke. With the writer's requests held for 400 ms, the whole draft still arrived 517 ms after the pen went down. After a SIGKILL mid-draft the watcher showed "reconnecting…" and got the draft back without the writer drawing.
+- `pnpm check`: All 25 checks passed, including 5 new tests for live ink.
+- Agent tested two Chrome sessions with Playwright on desktop (1920×1080) and mobile (390×844). The other user could see strokes while drawing, undo worked, and the finished character replaced the wet ink in 34–50 ms. Resizing the pad during drawing also worked. With a 400 ms network delay, the strokes arrived within 517 ms. After stopping the server with SIGKILL, the viewer saw "reconnecting…" and the drawing returned after reconnection.
 
-What I can't test is whether being watched makes people afraid to write. If people at the crit freeze or keep clearing the pad, sending a stroke only when the pen lifts is the fallback.
-
-## Next
-
-Crit 10 is logging. The server prints one line per character and nothing for ink, so I can't yet see what live ink costs in a busy room.
+I still don't know if people will feel nervous when others watch them write. If this happens during the crit, I can change it so strokes only appear after the pen is lifted.

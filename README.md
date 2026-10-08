@@ -1,6 +1,6 @@
 # Calligraphy Relay (书法接力)
 
-A line of classical Chinese poetry, written one character at a time by different people. You pick up the brush, write one character, and pass it on. The finished scroll is saved, with every writer's seal beside their character.
+A line of classical Chinese poetry, written one character at a time by different people. Pick up the brush, write one character, and pass it on. The finished scroll is saved with each writer's seal beside their character.
 
 ## What good means here
 

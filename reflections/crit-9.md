@@ -2,10 +2,10 @@
 
 ## 1. What was the breakthrough that moved the work forward?
 
-The breakthrough was separating what the room *sees* from what the scroll *keeps*. When I chose live ink, I was worried that it went against my own README: if people can watch you draft, they also see your mistakes, and I had promised the app would never judge handwriting. At first it felt like I had to pick one or the other. Then I realised the two could be split. Everyone watches the brush move, undos included, but only the character the writer decides to add is stored ([ADR 0002](../doc/adr/0002-live-ink.md)). That turned a vague worry into one clear rule ("never keep or replay a draft") that the server and the spec can both hold to.
+The breakthrough was separating what users *see* from what the scroll *keeps*. When I chose live ink, I worried that showing mistakes might go against my README's idea of never judging handwriting. Then I realised users could watch the drawing process, including undos, while only the final character would be saved ([ADR 0002](../doc/adr/0002-live-ink.md)). This gave me a clear rule: never save or replay unfinished strokes. I could then use this rule to guide the implementation and tests.
 
 ## 2. What did this work change about who I want to be as a software developer?
 
-This week made me more careful with numbers. One test said an update reached a slow connection in 14 ms, which was too good to be true, and it was. The throttling had not touched the stream at all. A green result or a fast number only means something if I know what was actually tested. I want to be a developer who asks "how could this number be wrong?" before putting it in a document.
+This week taught me to be more careful with test results. One test showed that an update reached a slow connection in just 14 ms, which seemed too fast. After checking, I found that the network delay had not affected the stream. I learned that passing tests and good numbers do not always mean everything works correctly. I want to be a developer who checks how tests are done and questions results that seem unusual.
 
-I also want to keep making the product decisions myself. The agent laid out the options clearly, and I ended up choosing the one it recommended, but I am the one who has to defend it to my pod. So I needed to understand what each option would cost, not just which one was suggested.
+I also learned that I should make my own decisions about the project. The agent gave me several options and recommended live ink, which I eventually chose. However, I still need to explain and defend my choice to my pod. This made me realise that I should understand the advantages and costs of each option before making a decision, even when I follow the agent's suggestion.
