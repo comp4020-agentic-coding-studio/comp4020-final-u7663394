@@ -57,6 +57,17 @@ export interface RoomEvents {
   glyph: { scrollId: number; glyph: Glyph };
   // the scroll was finished and a fresh one has started; refetch the room
   scroll: { finishedId: number; scroll: Scroll };
+  // live ink: the brush holder's draft as it is now, relayed and never stored
+  ink: InkDraft;
+}
+
+export interface InkDraft {
+  scrollId: number;
+  position: number;
+  writer: Person;
+  strokes: Stroke[];
+  // the stroke still being drawn, if the pen is down
+  current: Stroke | null;
 }
 
 export type ErrorCode =
@@ -80,3 +91,5 @@ export const HALL = "hall";
 export const ROOM_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 export const NAME_MAX = 20;
 export const BRUSH_HOLD_MS = 3 * 60 * 1000;
+// how often a writer's pad sends its draft to the room, at most
+export const INK_EVERY_MS = 120;

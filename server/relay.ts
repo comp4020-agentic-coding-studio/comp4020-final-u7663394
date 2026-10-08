@@ -229,6 +229,21 @@ export function putDownBrush(db: DatabaseSync, room: string, me: Person): void {
   ).run(room, me.id);
 }
 
+// Live ink is a draft, so nothing is written: this only checks that it comes
+// from whoever holds the brush, for the character they're on, and says which
+// scroll it belongs to. Runs synchronously like a commit, so a draft that
+// arrives after its character went in is refused rather than shown late.
+export function checkInk(db: DatabaseSync, room: string, me: Person, position: unknown): number {
+  if (!Number.isInteger(position)) throw new RelayError("invalid_request", 400, "Which character?");
+  const scroll = selectOpen(db, room);
+  if (!scroll || scroll.brush_holder !== me.id) {
+    throw new RelayError("not_your_brush", 409, "Pick up the brush before writing.");
+  }
+  const next = (db.prepare("SELECT count(*) AS n FROM glyphs WHERE scroll_id = ?").get(scroll.id) as { n: number }).n;
+  if (position !== next) throw new RelayError("stale_position", 409, "That character has already been written.");
+  return scroll.id;
+}
+
 export interface Written {
   glyph: Glyph;
   scrollId: number;

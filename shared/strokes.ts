@@ -33,5 +33,15 @@ export function isStrokeList(value: unknown): value is Stroke[] {
   return true;
 }
 
+// A draft on its way to the room (live ink): the strokes so far, which may be
+// none after an undo or a clear, and the one still being drawn. Same limits as
+// a finished character.
+export function isDraft(strokes: unknown, current: unknown): boolean {
+  if (!Array.isArray(strokes) || current === undefined) return false;
+  if (current !== null && (typeof current !== "object" || Array.isArray(current))) return false;
+  const all = current === null ? strokes : [...strokes, current];
+  return all.length === 0 || isStrokeList(all);
+}
+
 const inRange = (n: unknown, max: number): boolean =>
   typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= max;

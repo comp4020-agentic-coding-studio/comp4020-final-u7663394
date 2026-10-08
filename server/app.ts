@@ -14,6 +14,7 @@ import { Hub } from "./hub.ts";
 import { renderReadme } from "./readme.ts";
 import * as relay from "./relay.ts";
 import { ROOM_PATTERN, type ApiError, type Person, type RoomState } from "../shared/api.ts";
+import { isDraft, type Stroke } from "../shared/strokes.ts";
 
 const COOKIE = "relay_visitor";
 const YEAR = 60 * 60 * 24 * 365;
@@ -146,6 +147,26 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     const room = roomOf(c);
     relay.putDownBrush(db, room, needMe(c));
     announceBrush(room);
+    return c.body(null, 204);
+  });
+
+  // Live ink: the holder's draft, passed straight on to everyone watching. It
+  // is never stored; only the character added with POST .../glyphs is kept.
+  app.put("/api/rooms/:room/ink", async (c) => {
+    const room = roomOf(c);
+    const me = needMe(c);
+    const { position, strokes, current } = await body(c);
+    if (!isDraft(strokes, current)) {
+      throw new relay.RelayError("invalid_strokes", 400, "That drawing couldn't be read, or it's too large.");
+    }
+    const scrollId = relay.checkInk(db, room, me, position);
+    hub.broadcast(room, "ink", {
+      scrollId,
+      position: position as number,
+      writer: me,
+      strokes: strokes as Stroke[],
+      current: current as Stroke | null,
+    });
     return c.body(null, 204);
   });
 
