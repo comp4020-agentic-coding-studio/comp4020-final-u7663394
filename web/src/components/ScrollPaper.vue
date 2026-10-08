@@ -4,12 +4,14 @@
 import { computed } from "vue";
 import GlyphInk from "./GlyphInk.vue";
 import { characters, textById } from "../../../shared/texts.ts";
-import type { Brush, Glyph } from "../../../shared/api.ts";
+import type { Brush, Glyph, InkDraft } from "../../../shared/api.ts";
 
 const props = defineProps<{
   textId: string;
   glyphs: Glyph[];
   brush?: Brush | null;
+  // live ink: the draft of whoever is writing the next character
+  ink?: InkDraft | null;
   meId?: string | null;
   large?: boolean;
 }>();
@@ -19,13 +21,18 @@ const columns = computed(() => {
   if (!text) return [];
   const byPosition = new Map(props.glyphs.map((g) => [g.position, g]));
   const next = props.glyphs.length;
-  const cells = characters(text).map((c, position) => ({
-    ...c,
-    position,
-    glyph: byPosition.get(position) ?? null,
-    next: position === next,
-    writing: props.brush && props.brush.position === position ? props.brush.holder.name : null,
-  }));
+  const cells = characters(text).map((c, position) => {
+    const glyph = byPosition.get(position) ?? null;
+    const ink = !glyph && props.ink?.position === position ? props.ink : null;
+    return {
+      ...c,
+      position,
+      glyph,
+      ink,
+      next: position === next,
+      writing: props.brush?.position === position ? props.brush.holder.name : (ink?.writer.name ?? null),
+    };
+  });
   return text.lines.map((_, column) => cells.filter((c) => c.column === column));
 });
 
@@ -49,7 +56,10 @@ function label(cell: (typeof columns.value)[number][number]): string {
       >
         <div class="square">
           <GlyphInk v-if="cell.glyph" :strokes="cell.glyph.strokes" />
-          <span v-else class="model" aria-hidden="true">{{ cell.char }}</span>
+          <template v-else>
+            <span class="model" aria-hidden="true">{{ cell.char }}</span>
+            <GlyphInk v-if="cell.ink" :strokes="cell.ink.strokes" :current="cell.ink.current" wet />
+          </template>
         </div>
         <span v-if="cell.glyph" class="seal" :title="cell.glyph.writer.name">{{ cell.glyph.writer.name }}</span>
         <span v-else-if="cell.writing" class="seal pending">{{ cell.writing }}…</span>
@@ -96,6 +106,10 @@ function label(cell: (typeof columns.value)[number][number]): string {
   place-items: center;
   border: 1px dashed transparent;
 }
+/* live ink sits on top of the faint model character */
+.square > * {
+  grid-area: 1 / 1;
+}
 .cell:not(.written) .square {
   border-color: rgb(179 38 30 / 0.25);
 }
@@ -125,10 +139,11 @@ function label(cell: (typeof columns.value)[number][number]): string {
 .written .square {
   animation: land 0.6s ease-out;
 }
+/* the ink dries: from the lightness of live ink to the scroll's own */
 @keyframes land {
   from {
-    opacity: 0;
-    transform: scale(0.92);
+    opacity: 0.55;
+    transform: scale(0.96);
   }
 }
 @media (prefers-reduced-motion: reduce) {

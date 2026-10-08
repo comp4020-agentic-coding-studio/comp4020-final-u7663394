@@ -14,7 +14,13 @@ const props = defineProps<{
   problem: string | null;
   draftKey: string;
 }>();
-const emit = defineEmits<{ submit: [strokes: Stroke[]]; putDown: [] }>();
+const emit = defineEmits<{
+  submit: [strokes: Stroke[]];
+  putDown: [];
+  // the draft as it is now, for the room to watch (live ink); copies, since
+  // the stroke being drawn keeps growing
+  draft: [strokes: Stroke[], current: Stroke | null];
+}>();
 
 const loadDraft = (): Stroke[] => {
   try {
@@ -35,6 +41,11 @@ const full = computed(() => strokes.value.length >= MAX_STROKES || pointCount.va
 // A reload or a dropped connection shouldn't cost anyone their character.
 watch(strokes, (s) => localStorage.setItem(props.draftKey, JSON.stringify(s)), { deep: true });
 
+const sendDraft = (): void => {
+  const c = current.value;
+  emit("draft", strokes.value.slice(), c ? { pts: c.pts.slice(), pen: c.pen } : null);
+};
+
 function point(e: PointerEvent, pen: boolean): number[] {
   const box = pad.value!.getBoundingClientRect();
   const clamp = (n: number): number => Math.min(INK_BOX, Math.max(0, Math.round(n)));
@@ -50,6 +61,7 @@ function down(e: PointerEvent): void {
   pad.value!.setPointerCapture(e.pointerId);
   const pen = e.pointerType === "pen";
   current.value = { pts: point(e, pen), pen };
+  sendDraft();
 }
 
 function move(e: PointerEvent): void {
@@ -59,15 +71,24 @@ function move(e: PointerEvent): void {
     if (pointCount.value + stroke.pts.length / 3 >= MAX_POINTS) break;
     stroke.pts.push(...point(ev, stroke.pen));
   }
+  sendDraft();
 }
 
 function up(): void {
-  if (current.value) strokes.value.push(current.value);
+  if (!current.value) return;
+  strokes.value.push(current.value);
   current.value = null;
+  sendDraft();
 }
 
-const undo = (): void => void strokes.value.pop();
-const clear = (): void => void (strokes.value = []);
+function undo(): void {
+  strokes.value.pop();
+  sendDraft();
+}
+function clear(): void {
+  strokes.value = [];
+  sendDraft();
+}
 
 const paths = computed(() => strokes.value.map((s) => strokePath(s)));
 const currentPath = computed(() => (current.value ? strokePath(current.value, false) : ""));
@@ -82,7 +103,11 @@ const left = computed(() => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 });
 
-onMounted(() => heading.value?.focus());
+onMounted(() => {
+  heading.value?.focus();
+  // a draft kept from before a reload is back on the pad, so the room sees it too
+  if (strokes.value.length) sendDraft();
+});
 
 defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
 </script>
@@ -98,6 +123,7 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
       <p class="hold late" v-else>
         Time's up: you can still finish, unless someone else picks up the brush.
       </p>
+      <p class="watched">The room watches your brush as you write. Only what you add to the scroll is kept.</p>
     </header>
 
     <svg
@@ -170,6 +196,11 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
 }
 .hold.late {
   color: var(--seal);
+}
+.watched {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 .pad {
   width: min(100%, 26rem, 52vh);

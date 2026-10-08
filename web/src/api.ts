@@ -44,6 +44,8 @@ export const api = {
   putDownBrush: (name: string) => call<void>("DELETE", `${room(name)}/brush`),
   write: (name: string, position: number, strokes: Stroke[]) =>
     call<unknown>("POST", `${room(name)}/glyphs`, { position, strokes }),
+  ink: (name: string, draft: { position: number; strokes: Stroke[]; current: Stroke | null }) =>
+    call<void>("PUT", `${room(name)}/ink`, draft),
   scroll: (id: number) => call<{ scroll: Scroll }>("GET", `/api/scrolls/${id}`),
   events: (name: string) => new EventSource(`${room(name)}/events`),
 };

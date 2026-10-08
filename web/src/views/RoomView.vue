@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from "vue";
+import { computed, onUnmounted, ref, toRef, watch } from "vue";
 import { useRouter } from "vue-router";
 import ScrollPaper from "../components/ScrollPaper.vue";
 import WritingPad from "../components/WritingPad.vue";
 import NameForm from "../components/NameForm.vue";
 import { useRoom } from "../useRoom.ts";
+import { inkSender, type Draft } from "../liveInk.ts";
 import { api, ApiFailure, me } from "../api.ts";
 import { characters, textById } from "../../../shared/texts.ts";
 import { HALL, ROOM_PATTERN } from "../../../shared/api.ts";
@@ -12,7 +13,7 @@ import type { Stroke } from "../../../shared/strokes.ts";
 
 const props = defineProps<{ room: string }>();
 const router = useRouter();
-const { state, live, error, skew, announcement, justFinished, refresh } = useRoom(toRef(props, "room"));
+const { state, live, error, skew, announcement, justFinished, ink, refresh } = useRoom(toRef(props, "room"));
 
 const text = computed(() => (state.value ? textById(state.value.scroll.textId) : undefined));
 const chars = computed(() => (text.value ? characters(text.value) : []));
@@ -53,6 +54,34 @@ watch(
   },
 );
 
+// Live ink: while we hold the brush, the room watches the pad. A new sender
+// for each character, stopped the moment we stop holding it.
+let sender: ReturnType<typeof inkSender> | null = null;
+let lastDraft: Draft | null = null;
+watch(
+  holding,
+  (h) => {
+    sender?.stop();
+    sender = h ? inkSender((draft) => api.ink(props.room, draft)) : null;
+    lastDraft = null;
+  },
+  { immediate: true },
+);
+onUnmounted(() => sender?.stop());
+function onDraft(strokes: Stroke[], current: Stroke | null): void {
+  if (!holding.value) return;
+  lastDraft = { position: holding.value.position, strokes, current };
+  sender?.push(lastDraft);
+}
+// The server keeps no drafts, so someone who just arrived, or anyone after a
+// reconnect, has none to show: send the draft again whenever the room changes.
+watch(
+  () => [live.value, state.value?.present] as const,
+  ([isLive]) => {
+    if (isLive && lastDraft) sender?.push(lastDraft);
+  },
+);
+
 const iWroteLast = computed(() => !!me.value && state.value?.lastWriter?.id === me.value.id);
 const othersBrush = computed(() => {
   const b = state.value?.brush;
@@ -81,6 +110,7 @@ async function pickUp(): Promise<void> {
 
 async function putDown(): Promise<void> {
   busy.value = true;
+  sender?.stop();
   try {
     await api.putDownBrush(props.room);
   } catch {
@@ -170,6 +200,7 @@ const lineOf = (textId: string): string => textById(textId)?.lines.join("，") ?
             :text-id="state.scroll.textId"
             :glyphs="state.scroll.glyphs"
             :brush="state.brush"
+            :ink="ink"
             :me-id="me?.id"
           />
         </div>
@@ -186,6 +217,7 @@ const lineOf = (textId: string): string => textById(textId)?.lines.join("，") ?
             :draft-key="`relay:draft:${room}:${holding.scrollId}:${holding.position}`"
             @submit="submit"
             @put-down="putDown"
+            @draft="onDraft"
           />
 
           <template v-else>
@@ -195,7 +227,7 @@ const lineOf = (textId: string): string => textById(textId)?.lines.join("，") ?
                   <strong>{{ othersBrush.holder.name }}</strong> is writing
                   <span class="char" lang="zh-Hans">{{ chars[othersBrush.position]?.char }}</span>
                 </p>
-                <p>Watch the scroll: it appears the moment they finish. You can take the next one.</p>
+                <p>Watch the scroll: their strokes appear as they write them. You can take the next one.</p>
               </template>
               <template v-else-if="iWroteLast">
                 <p class="big">You wrote the last character. The brush passes on.</p>
