@@ -5,7 +5,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { transaction } from "./db.ts";
 import { characters, TEXTS, textById } from "../shared/texts.ts";
-import { isStrokeList, type Stroke } from "../shared/strokes.ts";
+import { DEFAULT_STYLE, isBrushStyle, isStrokeList, type BrushStyle, type Stroke } from "../shared/strokes.ts";
 import {
   BRUSH_HOLD_MS,
   NAME_MAX,
@@ -84,7 +84,8 @@ const lengthOf = (textId: string): number => {
 function glyphsOf(db: DatabaseSync, scrollId: number): Glyph[] {
   return db
     .prepare(
-      `SELECT position, char, writer_id, writer_name, strokes, written_at
+      `SELECT position, char, writer_id, writer_name, strokes, written_at,
+              style_weight, style_wetness, style_speed
        FROM glyphs WHERE scroll_id = ? ORDER BY position`,
     )
     .all(scrollId)
@@ -93,6 +94,11 @@ function glyphsOf(db: DatabaseSync, scrollId: number): Glyph[] {
       char: row.char as string,
       writer: { id: row.writer_id as string, name: row.writer_name as string },
       strokes: JSON.parse(row.strokes as string) as Stroke[],
+      style: {
+        weight: row.style_weight as number,
+        wetness: row.style_wetness as number,
+        speed: row.style_speed as number,
+      },
       writtenAt: row.written_at as number,
     }));
 }
@@ -229,6 +235,15 @@ export function putDownBrush(db: DatabaseSync, room: string, me: Person): void {
   ).run(room, me.id);
 }
 
+// The brush a character or a draft is drawn with: the writer's three numbers
+// exactly as sent, or the default brush when none comes. Anything else is
+// refused, never clamped into range.
+export function readStyle(raw: unknown): BrushStyle {
+  if (raw === undefined) return { ...DEFAULT_STYLE };
+  if (!isBrushStyle(raw)) throw new RelayError("invalid_style", 400, "Those brush settings couldn't be read.");
+  return { weight: raw.weight, wetness: raw.wetness, speed: raw.speed };
+}
+
 // Live ink is a draft, so nothing is written: this only checks that it comes
 // from whoever holds the brush, for the character they're on, and says which
 // scroll it belongs to. Runs synchronously like a commit, so a draft that
@@ -257,12 +272,14 @@ export function writeGlyph(
   me: Person,
   position: unknown,
   strokes: unknown,
+  rawStyle: unknown,
   now = Date.now(),
 ): Written {
   if (!Number.isInteger(position)) throw new RelayError("invalid_request", 400, "Which character?");
   if (!isStrokeList(strokes)) {
     throw new RelayError("invalid_strokes", 400, "That drawing couldn't be read, or it's too large.");
   }
+  const style = readStyle(rawStyle);
   openScrollRow(db, room);
   return transaction(db, () => {
     const scroll = selectOpen(db, room)!;
@@ -278,12 +295,25 @@ export function writeGlyph(
       char: characters(text)[next].char,
       writer: me,
       strokes,
+      style,
       writtenAt: now,
     };
     db.prepare(
-      `INSERT INTO glyphs (scroll_id, position, char, writer_id, writer_name, strokes, written_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run(scroll.id, next, glyph.char, me.id, me.name, JSON.stringify(strokes), now);
+      `INSERT INTO glyphs (scroll_id, position, char, writer_id, writer_name, strokes, written_at,
+                           style_weight, style_wetness, style_speed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      scroll.id,
+      next,
+      glyph.char,
+      me.id,
+      me.name,
+      JSON.stringify(strokes),
+      now,
+      style.weight,
+      style.wetness,
+      style.speed,
+    );
     db.prepare("UPDATE scrolls SET brush_holder = NULL, brush_until = NULL WHERE id = ?").run(scroll.id);
 
     let finished: Written["finished"] = null;

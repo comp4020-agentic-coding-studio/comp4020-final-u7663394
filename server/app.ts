@@ -150,15 +150,17 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     return c.body(null, 204);
   });
 
-  // Live ink: the holder's draft, passed straight on to everyone watching. It
-  // is never stored; only the character added with POST .../glyphs is kept.
+  // Live ink: the holder's draft, with the brush as they have it set, passed
+  // straight on to everyone watching. It is never stored; only the character
+  // added with POST .../glyphs is kept.
   app.put("/api/rooms/:room/ink", async (c) => {
     const room = roomOf(c);
     const me = needMe(c);
-    const { position, strokes, current } = await body(c);
+    const { position, strokes, current, style } = await body(c);
     if (!isDraft(strokes, current)) {
       throw new relay.RelayError("invalid_strokes", 400, "That drawing couldn't be read, or it's too large.");
     }
+    const brushStyle = relay.readStyle(style);
     const scrollId = relay.checkInk(db, room, me, position);
     hub.broadcast(room, "ink", {
       scrollId,
@@ -166,6 +168,7 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
       writer: me,
       strokes: strokes as Stroke[],
       current: current as Stroke | null,
+      style: brushStyle,
     });
     return c.body(null, 204);
   });
@@ -173,8 +176,8 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
   app.post("/api/rooms/:room/glyphs", async (c) => {
     const room = roomOf(c);
     const me = needMe(c);
-    const { position, strokes } = await body(c);
-    const written = relay.writeGlyph(db, room, me, position, strokes);
+    const { position, strokes, style } = await body(c);
+    const written = relay.writeGlyph(db, room, me, position, strokes, style);
     console.log(`glyph room=${room} scroll=${written.scrollId} position=${written.glyph.position} writer=${me.id}`);
     hub.broadcast(room, "glyph", { scrollId: written.scrollId, glyph: written.glyph });
     if (written.finished) {

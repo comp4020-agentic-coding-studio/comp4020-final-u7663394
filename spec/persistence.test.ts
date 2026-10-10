@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, expect, it } from "vitest";
-import { api, DRAWING, freshRoom } from "./helpers.ts";
+import { api, DRAWING, freshRoom, STYLE } from "./helpers.ts";
 
 const port = 18_000 + Math.floor(Math.random() * 2000);
 const baseUrl = `http://localhost:${port}`;
@@ -48,7 +48,7 @@ it("keeps every written character, and who wrote it, across a crash and restart"
 
   await start();
   const [a, b] = [await visitor("Bamboo"), await visitor("InkFox")];
-  expect((await write(room, a)).status).toBe(201);
+  expect((await write(room, a, DRAWING, STYLE)).status).toBe(201);
   expect((await write(room, b)).status).toBe(201);
   await kill();
 
@@ -56,6 +56,7 @@ it("keeps every written character, and who wrote it, across a crash and restart"
   const { json } = await call("GET", `/api/rooms/${room}`);
   expect(json.scroll.glyphs.map((g: { writer: { name: string } }) => g.writer.name)).toEqual(["Bamboo", "InkFox"]);
   expect(json.scroll.glyphs[0].strokes).toEqual(DRAWING);
+  expect(json.scroll.glyphs[0].style).toEqual(STYLE);
   // and a returning browser is still the same person
   expect((await call("GET", "/api/me", { as: a })).json.me.name).toBe("Bamboo");
   // the rules carry over too: InkFox wrote last, so InkFox can't go again

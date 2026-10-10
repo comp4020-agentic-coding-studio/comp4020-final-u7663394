@@ -1,8 +1,9 @@
 // The relay's rules (README: "What good means here"), checked against the
 // running app. Each test writes only in its own fresh room.
 import { describe, expect, inject, it } from "vitest";
-import { api, DRAWING, freshRoom } from "./helpers.ts";
+import { api, DRAWING, freshRoom, STYLE } from "./helpers.ts";
 import { characters, TEXTS } from "../shared/texts.ts";
+import { DEFAULT_STYLE } from "../shared/strokes.ts";
 
 const baseUrl = inject("baseUrl");
 const { call, visitor, write } = api(baseUrl);
@@ -62,6 +63,47 @@ describe("every hand stays visible", () => {
     expect(glyph.writer).toEqual({ id: a.id, name: "Bamboo" });
     expect(glyph.char).toBe(characters(TEXTS[0])[0].char);
     expect(glyph.strokes).toEqual(DRAWING);
+  });
+
+  it("keeps the brush a character was written with, exactly as its writer set it", async () => {
+    const room = freshRoom();
+    const a = await visitor("Bamboo");
+    expect((await write(room, a, DRAWING, STYLE)).status).toBe(201);
+
+    const { json } = await call("GET", `/api/rooms/${room}`);
+    expect(json.scroll.glyphs[0].style).toEqual(STYLE);
+    // the brush changes how the ink is drawn, never the points
+    expect(json.scroll.glyphs[0].strokes).toEqual(DRAWING);
+  });
+
+  it("draws a character added without brush settings with the default brush", async () => {
+    const room = freshRoom();
+    const a = await visitor("Bamboo");
+    await write(room, a);
+    const { json } = await call("GET", `/api/rooms/${room}`);
+    expect(json.scroll.glyphs[0].style).toEqual(DEFAULT_STYLE);
+  });
+
+  it("refuses brush settings it can't read, rather than adjusting them", async () => {
+    const room = freshRoom();
+    const a = await visitor("Bamboo");
+    await call("POST", `/api/rooms/${room}/brush`, { as: a, body: { position: 0 } });
+    const bad = [
+      { ...STYLE, weight: 1.2 },
+      { ...STYLE, wetness: -0.1 },
+      { ...STYLE, speed: "0.5" },
+      { weight: 0.5, wetness: 0.5 },
+      [0.5, 0.5, 0.5],
+      "rich",
+      null,
+    ];
+    for (const style of bad) {
+      const res = await call("POST", `/api/rooms/${room}/glyphs`, { as: a, body: { position: 0, strokes: DRAWING, style } });
+      expect(res.status, JSON.stringify(style)).toBe(400);
+      expect(res.json.error).toBe("invalid_style");
+    }
+    const { json } = await call("GET", `/api/rooms/${room}`);
+    expect(json.scroll.glyphs).toEqual([]);
   });
 
   it("keeps the name a character was signed with after a rename", async () => {

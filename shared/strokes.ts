@@ -15,6 +15,24 @@ export interface Stroke {
   pen: boolean;
 }
 
+// How the brush draws a character's points, each 0..1: weight (how hard it
+// presses), wetness (how much ink it carries) and speed (how fast it moves).
+// The writer chooses it, it is kept with the character, and every screen draws
+// with it. It changes how the ink looks, never the points.
+export interface BrushStyle {
+  weight: number;
+  wetness: number;
+  speed: number;
+}
+
+export const DEFAULT_STYLE: BrushStyle = { weight: 0.55, wetness: 0.42, speed: 0.38 };
+
+export function isBrushStyle(value: unknown): value is BrushStyle {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const { weight, wetness, speed } = value as Record<string, unknown>;
+  return inRange(weight, 1) && inRange(wetness, 1) && inRange(speed, 1);
+}
+
 export function isStrokeList(value: unknown): value is Stroke[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > MAX_STROKES) return false;
   let points = 0;

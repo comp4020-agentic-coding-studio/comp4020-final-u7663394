@@ -2,7 +2,7 @@
 // `spec-…` room, so running the spec against a live app never touches the
 // hall or anyone's real scroll.
 import { randomUUID } from "node:crypto";
-import type { Stroke } from "../shared/strokes.ts";
+import type { BrushStyle, Stroke } from "../shared/strokes.ts";
 
 export interface Visitor {
   id: string;
@@ -18,6 +18,9 @@ export const DRAWING: Stroke[] = [
   { pts: [500, 80, 0.31, 505, 500, 0.62, 498, 930, 0.88], pen: true },
   { pts: [250, 700, 0.5, 750, 720, 0.5], pen: false },
 ];
+
+// A brush nobody would land on by accident.
+export const STYLE: BrushStyle = { weight: 0.81, wetness: 0.07, speed: 0.93 };
 
 export function api(baseUrl: string) {
   async function call(
@@ -44,13 +47,14 @@ export function api(baseUrl: string) {
     return { ...res.json.me, cookie };
   }
 
-  // Take the brush for the next character and write it.
-  async function write(room: string, as: Visitor, strokes: Stroke[] = DRAWING) {
+  // Take the brush for the next character and write it (with the default
+  // brush, unless a style is given).
+  async function write(room: string, as: Visitor, strokes: Stroke[] = DRAWING, style?: BrushStyle) {
     const state = await call("GET", `/api/rooms/${room}`);
     const position = state.json.scroll.glyphs.length;
     const take = await call("POST", `/api/rooms/${room}/brush`, { as, body: { position } });
     if (take.status !== 200) return take;
-    return call("POST", `/api/rooms/${room}/glyphs`, { as, body: { position, strokes } });
+    return call("POST", `/api/rooms/${room}/glyphs`, { as, body: { position, strokes, style } });
   }
 
   return { call, visitor, write };

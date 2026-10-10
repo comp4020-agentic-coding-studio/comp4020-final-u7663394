@@ -46,6 +46,13 @@ const MIGRATIONS: string[] = [
   ) STRICT;
   CREATE INDEX glyphs_by_time ON glyphs(written_at);
   `,
+  // The brush each character was written with, as its writer set it. A
+  // character from before there was a choice gets the default brush.
+  `
+  ALTER TABLE glyphs ADD COLUMN style_weight REAL NOT NULL DEFAULT 0.55 CHECK (style_weight BETWEEN 0 AND 1);
+  ALTER TABLE glyphs ADD COLUMN style_wetness REAL NOT NULL DEFAULT 0.42 CHECK (style_wetness BETWEEN 0 AND 1);
+  ALTER TABLE glyphs ADD COLUMN style_speed REAL NOT NULL DEFAULT 0.38 CHECK (style_speed BETWEEN 0 AND 1);
+  `,
 ];
 
 export function openDatabase(dataDir: string): DatabaseSync {

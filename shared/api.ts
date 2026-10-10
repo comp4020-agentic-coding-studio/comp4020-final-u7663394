@@ -1,5 +1,5 @@
 // What the server sends and accepts. The client and the spec both read these.
-import type { Stroke } from "./strokes.ts";
+import type { BrushStyle, Stroke } from "./strokes.ts";
 
 export interface Person {
   id: string;
@@ -11,6 +11,8 @@ export interface Glyph {
   char: string;
   writer: Person;
   strokes: Stroke[];
+  // the brush its writer drew it with, kept as they chose it
+  style: BrushStyle;
   writtenAt: number;
 }
 
@@ -68,6 +70,8 @@ export interface InkDraft {
   strokes: Stroke[];
   // the stroke still being drawn, if the pen is down
   current: Stroke | null;
+  // the brush as the writer has it set right now
+  style: BrushStyle;
 }
 
 export type ErrorCode =
@@ -75,6 +79,7 @@ export type ErrorCode =
   | "invalid_name"
   | "invalid_room"
   | "invalid_strokes"
+  | "invalid_style"
   | "invalid_request"
   | "pass_the_brush"
   | "brush_taken"

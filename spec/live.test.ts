@@ -1,7 +1,7 @@
 // "Everyone in the room sees it happen": changes reach every other open
 // session within about a second, with nothing for the viewer to do.
 import { describe, expect, inject, it } from "vitest";
-import { api, DRAWING, freshRoom, openStream, type Visitor } from "./helpers.ts";
+import { api, DRAWING, freshRoom, openStream, STYLE, type Visitor } from "./helpers.ts";
 
 const baseUrl = inject("baseUrl");
 const { visitor, write, call } = api(baseUrl);
@@ -17,6 +17,20 @@ it("shows a new character to someone else watching within a second", async () =>
     const seen = await watcher.waitFor((e) => e.event === "glyph");
     expect(seen.data.glyph.writer.name).toBe("Bamboo");
     expect(seen.at - sent).toBeLessThan(SECOND);
+  } finally {
+    watcher.close();
+  }
+});
+
+it("shows everyone a new character with the brush its writer chose", async () => {
+  const room = freshRoom();
+  const a = await visitor("Bamboo");
+  const watcher = await openStream(baseUrl, room);
+  try {
+    expect((await write(room, a, DRAWING, STYLE)).status).toBe(201);
+    const seen = await watcher.waitFor((e) => e.event === "glyph");
+    expect(seen.data.glyph.style).toEqual(STYLE);
+    expect(seen.data.glyph.strokes).toEqual(DRAWING);
   } finally {
     watcher.close();
   }
@@ -86,6 +100,23 @@ describe("live ink", () => {
     }
   });
 
+  it("shows watchers the brush the writer has set, as they change it", async () => {
+    const room = freshRoom();
+    const a = await visitor("Bamboo");
+    const watcher = await openStream(baseUrl, room);
+    try {
+      await call("POST", `/api/rooms/${room}/brush`, { as: a, body: { position: 0 } });
+      const sent = performance.now();
+      expect((await ink(room, a, { position: 0, strokes: [STROKE], current: null, style: STYLE })).status).toBe(204);
+      const seen = await watcher.waitFor((e) => e.event === "ink");
+      expect(seen.at - sent).toBeLessThan(SECOND);
+      expect(seen.data.style).toEqual(STYLE);
+      expect(seen.data.strokes).toEqual([STROKE]);
+    } finally {
+      watcher.close();
+    }
+  });
+
   it("shows an undo or a cleared pad too, since the draft is shown as it is", async () => {
     const room = freshRoom();
     const a = await visitor("Bamboo");
@@ -139,6 +170,8 @@ describe("live ink", () => {
       { position: 0, strokes: [{ pts: [1001, 2, 0.5], pen: false }], current: null },
       { position: 0, strokes: [], current: { pts: [1, 2], pen: false } },
       { position: 0, strokes: [] },
+      { position: 0, strokes: [], current: null, style: { ...STYLE, wetness: 2 } },
+      { position: 0, strokes: [], current: null, style: "wet" },
     ]) {
       const res = await ink(room, a, bad);
       expect(res.status, JSON.stringify(bad)).toBe(400);
