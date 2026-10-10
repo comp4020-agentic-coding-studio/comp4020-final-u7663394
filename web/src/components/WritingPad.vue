@@ -3,7 +3,16 @@
 // reports them (scaled to the pad), so the ink on the scroll is this hand.
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import GlyphInk from "./GlyphInk.vue";
-import { INK_BOX, MAX_POINTS, MAX_STROKES, type Stroke } from "../../../shared/strokes.ts";
+import BrushControls from "./BrushControls.vue";
+import {
+  DEFAULT_STYLE,
+  INK_BOX,
+  isBrushStyle,
+  MAX_POINTS,
+  MAX_STROKES,
+  type BrushStyle,
+  type Stroke,
+} from "../../../shared/strokes.ts";
 
 const props = defineProps<{
   char: string;
@@ -15,11 +24,11 @@ const props = defineProps<{
   draftKey: string;
 }>();
 const emit = defineEmits<{
-  submit: [strokes: Stroke[]];
+  submit: [strokes: Stroke[], style: BrushStyle];
   putDown: [];
   // the draft as it is now, for the room to watch (live ink); copies, since
   // the stroke being drawn keeps growing
-  draft: [strokes: Stroke[], current: Stroke | null];
+  draft: [strokes: Stroke[], current: Stroke | null, style: BrushStyle];
 }>();
 
 const loadDraft = (): Stroke[] => {
@@ -34,6 +43,21 @@ const current = ref<Stroke | null>(null);
 const guide = ref(true);
 const pad = ref<HTMLDivElement | null>(null);
 const heading = ref<HTMLElement | null>(null);
+const actions = ref<HTMLElement | null>(null);
+
+// This browser's brush, as its writer last left it: their own way of writing
+// carries over from one character to the next.
+const STYLE_KEY = "relay:brush-style";
+const loadStyle = (): BrushStyle => {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(STYLE_KEY) ?? "null");
+    if (!isBrushStyle(saved)) return { ...DEFAULT_STYLE };
+    return { weight: saved.weight, wetness: saved.wetness, speed: saved.speed };
+  } catch {
+    return { ...DEFAULT_STYLE };
+  }
+};
+const style = ref<BrushStyle>(loadStyle());
 
 const pointCount = computed(() => strokes.value.reduce((n, s) => n + s.pts.length / 3, 0));
 const full = computed(() => strokes.value.length >= MAX_STROKES || pointCount.value >= MAX_POINTS);
@@ -43,8 +67,15 @@ watch(strokes, (s) => localStorage.setItem(props.draftKey, JSON.stringify(s)), {
 
 const sendDraft = (): void => {
   const c = current.value;
-  emit("draft", strokes.value.slice(), c ? { pts: c.pts.slice(), pen: c.pen } : null);
+  emit("draft", strokes.value.slice(), c ? { pts: c.pts.slice(), pen: c.pen } : null, { ...style.value });
 };
+
+// Changing the brush redraws the pad from the same points, and the room sees
+// the change with the next draft.
+watch(style, (s) => {
+  localStorage.setItem(STYLE_KEY, JSON.stringify(s));
+  sendDraft();
+});
 
 function point(e: PointerEvent, pen: boolean): number[] {
   const box = pad.value!.getBoundingClientRect();
@@ -102,6 +133,8 @@ const left = computed(() => {
 
 onMounted(() => {
   heading.value?.focus();
+  // on a short screen, bring "Add to the scroll" into view with the pad
+  actions.value?.scrollIntoView({ block: "nearest" });
   // a draft kept from before a reload is back on the pad, so the room sees it too
   if (strokes.value.length) sendDraft();
 });
@@ -146,15 +179,20 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
           {{ char }}
         </text>
       </svg>
-      <GlyphInk :strokes="strokes" :current="current" />
+      <GlyphInk :strokes="strokes" :current="current" :brush-style="style" />
     </div>
 
     <p v-if="full" class="note">That's as much ink as one character can hold.</p>
     <p v-if="problem" class="problem" role="alert">{{ problem }}</p>
 
-    <div class="actions">
+    <div ref="actions" class="actions">
       <button type="button" class="quiet" @click="emit('putDown')" :disabled="sending">Put the brush down</button>
-      <button type="button" class="primary" @click="emit('submit', strokes)" :disabled="!strokes.length || sending">
+      <button
+        type="button"
+        class="primary"
+        @click="emit('submit', strokes, { ...style })"
+        :disabled="!strokes.length || sending"
+      >
         {{ sending ? "Adding to the scroll…" : "Add to the scroll" }}
       </button>
     </div>
@@ -163,6 +201,7 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
       <button type="button" @click="undo" :disabled="!strokes.length || sending">Undo stroke</button>
       <button type="button" @click="clear" :disabled="!strokes.length || sending">Clear</button>
     </div>
+    <BrushControls v-model="style" class="dials" :disabled="sending" />
   </section>
 </template>
 
@@ -170,6 +209,28 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
 .pad-wrap {
   display: grid;
   gap: 0.75rem;
+}
+/* With room to spare, the brush sits beside the pad: write, adjust, add. */
+@media (min-width: 80rem) {
+  .pad-wrap {
+    grid-template-columns: min(26rem, 52vh) minmax(15rem, 1fr);
+    column-gap: 1rem;
+  }
+  .pad-head,
+  .note,
+  .problem,
+  .actions,
+  .tools {
+    grid-column: 1 / -1;
+  }
+  .pad {
+    grid-row: 2;
+  }
+  .dials {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+  }
 }
 .pad-head h2 {
   margin: 0;

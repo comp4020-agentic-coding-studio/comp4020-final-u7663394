@@ -6,12 +6,13 @@
 // fine: the next one replaces it, and the character itself goes by its own
 // request, so a failure here is never shown to the writer.
 import { INK_EVERY_MS } from "../../shared/api.ts";
-import type { Stroke } from "../../shared/strokes.ts";
+import type { BrushStyle, Stroke } from "../../shared/strokes.ts";
 
 export interface Draft {
   position: number;
   strokes: Stroke[];
   current: Stroke | null;
+  style: BrushStyle;
 }
 
 export function inkSender(send: (draft: Draft) => Promise<unknown>) {

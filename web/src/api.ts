@@ -2,7 +2,7 @@
 // the views can explain; "network" means the request never got an answer.
 import { ref } from "vue";
 import type { ApiError, Brush, Person, RoomState, Scroll } from "../../shared/api.ts";
-import type { Stroke } from "../../shared/strokes.ts";
+import type { BrushStyle, Stroke } from "../../shared/strokes.ts";
 
 export class ApiFailure extends Error {
   code: ApiError["error"] | "network" | "server_error";
@@ -42,9 +42,9 @@ export const api = {
   room: (name: string) => call<RoomState>("GET", room(name)),
   takeBrush: (name: string, position: number) => call<{ brush: Brush }>("POST", `${room(name)}/brush`, { position }),
   putDownBrush: (name: string) => call<void>("DELETE", `${room(name)}/brush`),
-  write: (name: string, position: number, strokes: Stroke[]) =>
-    call<unknown>("POST", `${room(name)}/glyphs`, { position, strokes }),
-  ink: (name: string, draft: { position: number; strokes: Stroke[]; current: Stroke | null }) =>
+  write: (name: string, position: number, strokes: Stroke[], style: BrushStyle) =>
+    call<unknown>("POST", `${room(name)}/glyphs`, { position, strokes, style }),
+  ink: (name: string, draft: { position: number; strokes: Stroke[]; current: Stroke | null; style: BrushStyle }) =>
     call<void>("PUT", `${room(name)}/ink`, draft),
   scroll: (id: number) => call<{ scroll: Scroll }>("GET", `/api/scrolls/${id}`),
   events: (name: string) => new EventSource(`${room(name)}/events`),

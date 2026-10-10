@@ -9,7 +9,7 @@ import { inkSender, type Draft } from "../liveInk.ts";
 import { api, ApiFailure, me } from "../api.ts";
 import { characters, textById } from "../../../shared/texts.ts";
 import { HALL, ROOM_PATTERN } from "../../../shared/api.ts";
-import type { Stroke } from "../../../shared/strokes.ts";
+import type { BrushStyle, Stroke } from "../../../shared/strokes.ts";
 
 const props = defineProps<{ room: string }>();
 const router = useRouter();
@@ -68,9 +68,9 @@ watch(
   { immediate: true },
 );
 onUnmounted(() => sender?.stop());
-function onDraft(strokes: Stroke[], current: Stroke | null): void {
+function onDraft(strokes: Stroke[], current: Stroke | null, style: BrushStyle): void {
   if (!holding.value) return;
-  lastDraft = { position: holding.value.position, strokes, current };
+  lastDraft = { position: holding.value.position, strokes, current, style };
   sender?.push(lastDraft);
 }
 // The server keeps no drafts, so someone who just arrived, or anyone after a
@@ -121,13 +121,13 @@ async function putDown(): Promise<void> {
   busy.value = false;
 }
 
-async function submit(strokes: Stroke[]): Promise<void> {
+async function submit(strokes: Stroke[], style: BrushStyle): Promise<void> {
   if (!holding.value) return;
   const { position } = holding.value;
   busy.value = true;
   problem.value = null;
   try {
-    await api.write(props.room, position, strokes);
+    await api.write(props.room, position, strokes, style);
     pad.value?.forget();
     holding.value = null;
   } catch (e) {
@@ -348,6 +348,12 @@ const lineOf = (textId: string): string => textById(textId)?.lines.join("，") ?
   gap: 1.5rem;
   grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem);
   align-items: start;
+}
+@media (min-width: 80rem) {
+  /* the pad and the brush side by side need the room */
+  .stage.writing {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 44rem);
+  }
 }
 @media (max-width: 52rem) {
   .stage {
