@@ -14,19 +14,29 @@ supersedes the old one; an accepted ADR is never edited.
 - **Let one person write two characters in a row**, or let two people hold the
   brush at once. Both are decided inside a SQLite transaction in
   `server/relay.ts`, never only in the client.
-- **Alter a writer's strokes.** The server validates the shape and size of a
-  stroke list and stores it byte for byte. No smoothing, resampling,
-  simplifying or "cleaning up" on either side; `web/src/ink.ts` only *draws*
-  the stored points.
+- **Alter a writer's strokes or their brush.** The server validates the shape
+  and size of a stroke list and stores it byte for byte, and stores the
+  writer's weight, wetness and speed exactly as sent (three `CHECK`ed columns;
+  out of range is refused, never clamped). No smoothing, resampling,
+  simplifying or "cleaning up" of what is stored or sent, on either side.
+  `web/src/ink.ts` may interpolate between the points to *draw* them, never
+  to change them. Once a character is added nobody can restyle it, its writer
+  included (`doc/adr/0003-the-writers-brush.md`).
+- **Draw one character two ways.** `web/src/ink.ts` draws from the stored
+  points and brush only. Its randomness is seeded from the strokes, never
+  `Math.random()` or the clock, and its sizes are in box units, so another
+  screen only changes the resolution.
 - **Judge handwriting.** No scores, ratings, likes, rankings, recognition or
-  "correctness" feedback on a character, ever.
+  "correctness" feedback on a character, ever. No matching strokes against a
+  model character and no redrawing them from a stroke dataset: 墨 Ink, which
+  the brush is modelled on, does both, and both are left out.
 - **Show a character without its writer**, or re-sign one: a glyph keeps the
   `writer_name` it was written with, even after a rename.
-- **Keep or replay a draft.** Live ink (the brush holder's strokes while
-  they write, `doc/adr/0002-live-ink.md`) is relayed to the room and stored
-  nowhere, not in the database and not in memory. Only the character the
-  writer adds is kept. Watchers see the draft exactly as it is, undos
-  included; it is drawn by the same `web/src/ink.ts`, never tidied.
+- **Keep or replay a draft.** Live ink (the brush holder's strokes and brush
+  settings while they write, `doc/adr/0002-live-ink.md`) is relayed to the
+  room and stored nowhere, not in the database and not in memory. Only the
+  character the writer adds is kept. Watchers see the draft exactly as it is,
+  undos included; it is drawn by the same `web/src/ink.ts`, never tidied.
 - **Lose a written character.** A write is answered only after its transaction
   commits. A failed submit keeps the drawing on the pad (and in localStorage)
   so the writer can retry.
@@ -45,7 +55,8 @@ supersedes the old one; an accepted ADR is never edited.
   in the `aria-live` region. The connection state ("live" / "reconnecting…")
   is always visible. Live ink is the exception to announcing: picking up the
   brush and adding a character are announced, single strokes are not.
-- Whoever holds the brush is told on the pad that the room is watching.
+- Whoever holds the brush is told on the pad that the room is watching, and
+  that the brush dials redraw their strokes without moving them.
 - Text for people who don't read Chinese: pinyin, translation and the model
   character accompany every character to be written.
 - Respect `prefers-reduced-motion`.
@@ -58,7 +69,8 @@ the API, one SSE stream per room (brush, live ink, characters, presence),
 `/readme/` (README rendered server-side) and the client. SQLite via
 `node:sqlite` at `$DATA_DIR/relay.db` (`/data` on Fly). Types shared by both
 sides live in `shared/`. The only in-memory state is who is connected
-(`server/hub.ts`); everything else is in the database.
+(`server/hub.ts`); everything else is in the database. Ink is drawn on
+`<canvas>` by `web/src/ink.ts`, the one place points become ink.
 
 - The server runs under Node's type stripping: erasable TypeScript only (no
   `enum`, no parameter properties, no `namespace`), and imports name the file
