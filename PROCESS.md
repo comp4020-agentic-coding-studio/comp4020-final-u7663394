@@ -33,7 +33,7 @@ Following my own `CLAUDE.md`, the README changed first: claim 2 is now "ink is k
 
 Green checks have meant less than they looked before, like in crit 8 when `/` was a download every check passed ([`0ff6c2c`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/0ff6c2c)), and in crit 9 when a "slow connection" test had not slowed anything. This week again, only looking at the screen caught most problems.
 
-- **Test input that hid the problem.** Playwright moves the mouse at a constant speed, so the first brush just looked a bit thin. When the agent changed the test strokes to speed up and slow down like a hand, every stroke started with a round "tadpole" blob. We limited how heavy a slow start can get and made pressed starts slanted, like a brush entering on the diagonal (逆锋起笔).
+- **Test input that hid the problem.** Playwright moves the mouse at a constant speed, so the first brush just looked a bit thin. When the agent changed the test strokes to speed up and slow down like a hand, every stroke started with a round "tadpole" blob. We limited how heavy a slow start can get and made pressed starts slanted, like a brush entering on the diagonal.
 - **Dials below the fold.** At 1920×1080 the sliders were under the bottom of the screen, so you couldn't write, adjust and add without scrolling. They now sit beside the pad on wide screens.
 - **A resize test that didn't resize.** Both window sizes hit the pad's size cap, so it proved nothing. Re-run with a size that really shrinks the pad, the stroke stayed in place.
 - **An invented fact.** The agent's first ADR draft said people at the crit called the characters "like a font". Nobody said that; it was caught on a reread and taken out before the commit.
@@ -43,4 +43,4 @@ Green checks have meant less than they looked before, like in crit 8 when `/` wa
 - `pnpm check`: 30 checks pass, including the 5 new ones and 2 extended ones.
 - Agent-run Chrome sessions at 1920×1080 and 390×844. The watcher's draft changed when the writer picked a new brush. Two viewers at the same size got pixel-identical characters. A failed submit kept the strokes and the brush through a reload. With the writer's requests held 400 ms, the watcher still ended on the writer's last brush, and the character arrived in about 0.8 s.
 
-I don't know yet whether the dials help people or just make them fuss. I'll watch that at the next crit. I also haven't tested speed on a real phone.
+I don't know yet whether the dials help people or just make them fuss. I'll watch that at the next crit.
