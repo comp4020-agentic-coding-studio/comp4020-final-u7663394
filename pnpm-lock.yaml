@@ -17,9 +17,6 @@ importers:
       marked:
         specifier: ^18.0.14
         version: 18.0.14
-      perfect-freehand:
-        specifier: ^1.2.3
-        version: 1.2.3
       vue:
         specifier: ^3.5.43
         version: 3.5.43(typescript@6.0.3)
@@ -687,9 +684,6 @@ packages:
 
   path-browserify@1.0.1:
     resolution: {integrity: sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==}
-
-  perfect-freehand@1.2.3:
-    resolution: {integrity: sha512-bHZSfqDHGNlPpgH2yxXgPHlQSPpEbo+qg7li0M78J9vNAi2yjwLeA4x79BEQhX44lEWpCLSFCeRZwpw0niiXPA==}
 
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
@@ -1431,8 +1425,6 @@ snapshots:
       entities: 8.1.0
 
   path-browserify@1.0.1: {}
-
-  perfect-freehand@1.2.3: {}
 
   picocolors@1.1.1: {}
 

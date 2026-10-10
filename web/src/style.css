@@ -1,8 +1,6 @@
 :root {
   color-scheme: light;
   --ink: #1d1b19;
-  /* live ink, still being written: lighter, like ink that hasn't dried */
-  --wet-ink: rgb(29 27 25 / 0.55);
   --paper: #f5eedd;
   --paper-deep: #efe4c9;
   --mount: #6b4e2e;

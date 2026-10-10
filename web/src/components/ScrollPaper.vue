@@ -55,10 +55,16 @@ function label(cell: (typeof columns.value)[number][number]): string {
         :aria-label="label(cell)"
       >
         <div class="square">
-          <GlyphInk v-if="cell.glyph" :strokes="cell.glyph.strokes" />
+          <GlyphInk v-if="cell.glyph" :strokes="cell.glyph.strokes" :brush-style="cell.glyph.style" />
           <template v-else>
             <span class="model" aria-hidden="true">{{ cell.char }}</span>
-            <GlyphInk v-if="cell.ink" :strokes="cell.ink.strokes" :current="cell.ink.current" wet />
+            <GlyphInk
+              v-if="cell.ink"
+              :strokes="cell.ink.strokes"
+              :current="cell.ink.current"
+              :brush-style="cell.ink.style"
+              wet
+            />
           </template>
         </div>
         <span v-if="cell.glyph" class="seal" :title="cell.glyph.writer.name">{{ cell.glyph.writer.name }}</span>

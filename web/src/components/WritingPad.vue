@@ -2,7 +2,7 @@
 // Where one character is written. Points are kept exactly as the pointer
 // reports them (scaled to the pad), so the ink on the scroll is this hand.
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { strokePath } from "../ink.ts";
+import GlyphInk from "./GlyphInk.vue";
 import { INK_BOX, MAX_POINTS, MAX_STROKES, type Stroke } from "../../../shared/strokes.ts";
 
 const props = defineProps<{
@@ -32,7 +32,7 @@ const loadDraft = (): Stroke[] => {
 const strokes = ref<Stroke[]>(loadDraft());
 const current = ref<Stroke | null>(null);
 const guide = ref(true);
-const pad = ref<SVGSVGElement | null>(null);
+const pad = ref<HTMLDivElement | null>(null);
 const heading = ref<HTMLElement | null>(null);
 
 const pointCount = computed(() => strokes.value.reduce((n, s) => n + s.pts.length / 3, 0));
@@ -90,9 +90,6 @@ function clear(): void {
   sendDraft();
 }
 
-const paths = computed(() => strokes.value.map((s) => strokePath(s)));
-const currentPath = computed(() => (current.value ? strokePath(current.value, false) : ""));
-
 // countdown
 const now = ref(Date.now());
 const tick = setInterval(() => (now.value = Date.now()), 1000);
@@ -126,11 +123,10 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
       <p class="watched">The room watches your brush as you write. Only what you add to the scroll is kept.</p>
     </header>
 
-    <svg
+    <div
       ref="pad"
       class="pad"
       :class="{ sending }"
-      :viewBox="`0 0 ${INK_BOX} ${INK_BOX}`"
       role="img"
       :aria-label="`Writing pad for ${char}. Draw with a mouse, finger or pen.`"
       @pointerdown="down"
@@ -139,18 +135,19 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
       @pointercancel="up"
       @lostpointercapture="up"
     >
-      <g class="grid" aria-hidden="true">
-        <line x1="0" y1="500" x2="1000" y2="500" />
-        <line x1="500" y1="0" x2="500" y2="1000" />
-        <line x1="0" y1="0" x2="1000" y2="1000" />
-        <line x1="1000" y1="0" x2="0" y2="1000" />
-      </g>
-      <text v-if="guide" class="guide" x="500" y="540" text-anchor="middle" dominant-baseline="middle">
-        {{ char }}
-      </text>
-      <path v-for="(d, i) in paths" :key="i" :d="d" class="ink" />
-      <path v-if="currentPath" :d="currentPath" class="ink" />
-    </svg>
+      <svg class="paper" :viewBox="`0 0 ${INK_BOX} ${INK_BOX}`" aria-hidden="true">
+        <g class="grid">
+          <line x1="0" y1="500" x2="1000" y2="500" />
+          <line x1="500" y1="0" x2="500" y2="1000" />
+          <line x1="0" y1="0" x2="1000" y2="1000" />
+          <line x1="1000" y1="0" x2="0" y2="1000" />
+        </g>
+        <text v-if="guide" class="guide" x="500" y="540" text-anchor="middle" dominant-baseline="middle">
+          {{ char }}
+        </text>
+      </svg>
+      <GlyphInk :strokes="strokes" :current="current" />
+    </div>
 
     <p v-if="full" class="note">That's as much ink as one character can hold.</p>
     <p v-if="problem" class="problem" role="alert">{{ problem }}</p>
@@ -206,12 +203,20 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
   width: min(100%, 26rem, 52vh);
   aspect-ratio: 1;
   justify-self: center;
+  display: grid;
   background: #fbf7ec;
   border: 2px solid var(--seal);
   touch-action: none;
   cursor: crosshair;
   user-select: none;
   -webkit-user-select: none;
+}
+/* the practice grid, the model character and the ink, one over the other */
+.pad > * {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 .pad.sending {
   opacity: 0.7;
@@ -226,9 +231,6 @@ defineExpose({ forget: () => localStorage.removeItem(props.draftKey) });
   font-size: 760px;
   fill: rgb(29 27 25 / 0.1);
   pointer-events: none;
-}
-.ink {
-  fill: var(--ink);
 }
 .tools,
 .actions {
