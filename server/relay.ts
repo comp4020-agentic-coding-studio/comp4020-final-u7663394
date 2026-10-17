@@ -228,11 +228,16 @@ export function takeBrush(db: DatabaseSync, room: string, me: Person, position: 
   });
 }
 
+// Only the holder puts the brush down. Anyone else is refused rather than told
+// it worked, so the answer, and the log, say what really happened.
 export function putDownBrush(db: DatabaseSync, room: string, me: Person): void {
-  db.prepare(
-    `UPDATE scrolls SET brush_holder = NULL, brush_until = NULL
-     WHERE room = ? AND finished_at IS NULL AND brush_holder = ?`,
-  ).run(room, me.id);
+  const { changes } = db
+    .prepare(
+      `UPDATE scrolls SET brush_holder = NULL, brush_until = NULL
+       WHERE room = ? AND finished_at IS NULL AND brush_holder = ?`,
+    )
+    .run(room, me.id);
+  if (changes === 0) throw new RelayError("not_your_brush", 409, "You aren't holding the brush.");
 }
 
 // The brush a character or a draft is drawn with: the writer's three numbers

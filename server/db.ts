@@ -53,6 +53,14 @@ const MIGRATIONS: string[] = [
   ALTER TABLE glyphs ADD COLUMN style_wetness REAL NOT NULL DEFAULT 0.42 CHECK (style_wetness BETWEEN 0 AND 1);
   ALTER TABLE glyphs ADD COLUMN style_speed REAL NOT NULL DEFAULT 0.38 CHECK (style_speed BETWEEN 0 AND 1);
   `,
+  // A written character is nobody's to change, its writer included
+  // (doc/adr/0004-who-may-change-what.md), so the database refuses too.
+  `
+  CREATE TRIGGER glyphs_never_change BEFORE UPDATE ON glyphs
+  BEGIN SELECT RAISE(ABORT, 'a written character is never changed'); END;
+  CREATE TRIGGER glyphs_never_removed BEFORE DELETE ON glyphs
+  BEGIN SELECT RAISE(ABORT, 'a written character is never removed'); END;
+  `,
 ];
 
 export function openDatabase(dataDir: string): DatabaseSync {
