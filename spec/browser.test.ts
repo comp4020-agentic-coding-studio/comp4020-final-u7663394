@@ -68,8 +68,14 @@ it.skipIf(!CHROME)(
     // Bo arrives while Ada is writing, and can still join from the page
     await bo.goto(url);
     await bo.getByText(/Ada\s+is writing/).waitFor();
+    // once Bo has a name, Bo's page watches the room as Bo, so the server
+    // (and its log) knows who is watching, not just that someone is
+    const watchingAsBo = bo.waitForRequest(
+      async (r) => r.url().endsWith("/events") && /relay_visitor=/.test((await r.allHeaders()).cookie ?? ""),
+    );
     await join(bo, "Bo");
     await expect.poll(() => bo.getByText(/You are\s+Bo/).count()).toBe(1);
+    await watchingAsBo;
 
     // Ada's character reaches Bo without a reload, with her seal on it
     await stroke(ada);

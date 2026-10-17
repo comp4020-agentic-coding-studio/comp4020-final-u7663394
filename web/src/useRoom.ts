@@ -140,6 +140,15 @@ export function useRoom(room: Ref<string>) {
     },
     { immediate: true },
   );
+  // The stream was opened as whoever this browser was then, often nobody yet.
+  // Once it has a name, watch again as that person, so the room counts them
+  // once and the server's log says who is watching.
+  watch(
+    () => me.value?.id,
+    (id, before) => {
+      if (id !== before) connect();
+    },
+  );
   window.addEventListener("online", reconnectIfDown);
   // a tab left open overnight, or a phone that slept, comes back to a dead stream
   document.addEventListener("visibilitychange", reconnectIfDown);
