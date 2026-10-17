@@ -48,6 +48,7 @@ against the live app without touching the hall.
 | `persistence.test.ts` | 6. It leaves a trace | characters, their brushes, writers, identities and the pass-the-brush rule survive the server being SIGKILLed and restarted on the same data directory |
 | `access.test.ts` | 7. What's yours stays yours | a request is nobody without its cookie, and a name or id in the body changes nothing; only the holder puts down a brush; nobody can put down, ink over or write past someone else's brush; a rename touches only your own name; the database refuses to change or delete a written character |
 | `log.test.ts` | 7. … the log says who did what | joining, picking up the brush, adding a character and every refusal are each a line on the server's stdout naming the person (short id and seal name), tagged with the request; tokens, stroke points and accepted live ink never appear; a chosen name can't forge a line |
+| `browser.test.ts` | 5 and 7, as a crit runs | two separate browser contexts (two Chrome profiles) open a room from its URL alone: the second can join while the first is writing, and sees the first's character arrive and their seal on it, without a reload |
 | `pages.test.ts` | (served at all) | `/`, `/r/…`, `/scroll/…` are the app's HTML page; added after a 200 that browsers downloaded passed the shipped check |
 
 Claim 5 (a stranger can join in ten seconds), whether the ink looks like
@@ -55,3 +56,7 @@ calligraphy, and whether a scroll of mixed hands reads as one piece, are judged
 rather than checked; the README says how. That every screen draws a character
 the same is held by a rule in `CLAUDE.md` (seeded randomness, box units) and was
 checked in a scripted browser run: two viewers at one size got identical pixels.
+
+`browser.test.ts` drives the Chrome already on the machine through
+`playwright-core` (no browser download). Without a Chrome it is skipped, and
+says so; `CHROME_PATH` points it at one somewhere else.

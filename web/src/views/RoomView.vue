@@ -248,8 +248,10 @@ const lineOf = (textId: string): string => textById(textId)?.lines.join("，") ?
 
             <p v-if="problem" class="problem" role="alert">{{ problem }}</p>
 
+            <!-- Joining is always on the page, even while someone else writes:
+                 the URL is all a newcomer gets (CLAUDE.md, spec/browser.test.ts). -->
             <NameForm
-              v-if="(!me || naming) && !othersBrush && !iWroteLast"
+              v-if="!me || naming"
               :prompt="me ? 'Change your name' : 'Choose a name for your seal to write'"
               :submit-label="me ? 'Save' : 'Join in'"
               @done="naming = false"
