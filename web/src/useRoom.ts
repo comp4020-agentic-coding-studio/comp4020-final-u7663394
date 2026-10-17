@@ -6,7 +6,7 @@
 // Live ink is the one thing not refetched: it is never stored, so after a
 // reconnect the next draft the writer sends brings it back.
 import { onUnmounted, ref, watch, type Ref } from "vue";
-import { api, me } from "./api.ts";
+import { api, me, meLoaded } from "./api.ts";
 import type { InkDraft, RoomEvents, RoomState } from "../../shared/api.ts";
 
 type Event = { [E in keyof RoomEvents]: { name: E; data: RoomEvents[E] } }[keyof RoomEvents];
@@ -25,6 +25,9 @@ export function useRoom(room: Ref<string>) {
   const ink = ref<InkDraft | null>(null);
 
   let source: EventSource | null = null;
+  // who this browser was when the stream opened (the cookie it carried)
+  let watchingAs: string | undefined;
+  let gone = false;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let buffered: Event[] | null = null;
 
@@ -100,6 +103,7 @@ export function useRoom(room: Ref<string>) {
 
   function connect(): void {
     disconnect();
+    watchingAs = me.value?.id;
     const es = api.events(room.value);
     source = es;
     for (const name of ["hello", "presence", "brush", "ink", "glyph", "scroll"] as const) {
@@ -136,7 +140,11 @@ export function useRoom(room: Ref<string>) {
       state.value = null;
       justFinished.value = null;
       void refresh();
-      connect();
+      // open the stream once we know who this browser is, so it isn't
+      // reopened a moment later just because that answer arrived
+      void meLoaded.then(() => {
+        if (!gone) connect();
+      });
     },
     { immediate: true },
   );
@@ -145,14 +153,15 @@ export function useRoom(room: Ref<string>) {
   // once and the server's log says who is watching.
   watch(
     () => me.value?.id,
-    (id, before) => {
-      if (id !== before) connect();
+    (id) => {
+      if (source && id !== watchingAs) connect();
     },
   );
   window.addEventListener("online", reconnectIfDown);
   // a tab left open overnight, or a phone that slept, comes back to a dead stream
   document.addEventListener("visibilitychange", reconnectIfDown);
   onUnmounted(() => {
+    gone = true;
     disconnect();
     window.removeEventListener("online", reconnectIfDown);
     document.removeEventListener("visibilitychange", reconnectIfDown);

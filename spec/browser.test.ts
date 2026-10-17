@@ -90,3 +90,26 @@ it.skipIf(!CHROME)(
   },
   30_000,
 );
+
+it.skipIf(!CHROME)(
+  "watches the room once when someone who already has a name comes back",
+  async () => {
+    const url = new URL(`/r/${freshRoom()}`, baseUrl).href;
+    const ada = await person(1920, 1080);
+    await ada.goto(url);
+    await join(ada, "Ada");
+    await ada.getByText(/You are\s+Ada/).waitFor();
+
+    // one stream per page load: a second would be a needless reconnect, and
+    // an extra room.open and room.close in the log every time
+    const streams: string[] = [];
+    ada.on("request", (r) => {
+      if (r.url().endsWith("/events")) streams.push(r.url());
+    });
+    await ada.reload();
+    await ada.getByText(/You are\s+Ada/).waitFor();
+    await ada.waitForTimeout(500);
+    expect(streams).toHaveLength(1);
+  },
+  30_000,
+);
