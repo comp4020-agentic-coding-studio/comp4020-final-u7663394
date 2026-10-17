@@ -47,6 +47,7 @@ against the live app without touching the hall.
 | `live.test.ts` | 4. The room sees it happen (live ink) | a stroke being drawn, an undo, and a change of brush reach another session within a second exactly as drawn; a draft is never stored; only the brush holder, for the character they're on, can send one; malformed ink or brush settings are refused |
 | `persistence.test.ts` | 6. It leaves a trace | characters, their brushes, writers, identities and the pass-the-brush rule survive the server being SIGKILLed and restarted on the same data directory |
 | `access.test.ts` | 7. What's yours stays yours | a request is nobody without its cookie, and a name or id in the body changes nothing; only the holder puts down a brush; nobody can put down, ink over or write past someone else's brush; a rename touches only your own name; the database refuses to change or delete a written character |
+| `log.test.ts` | 7. … the log says who did what | joining, picking up the brush, adding a character and every refusal are each a line on the server's stdout naming the person (short id and seal name), tagged with the request; tokens, stroke points and accepted live ink never appear; a chosen name can't forge a line |
 | `pages.test.ts` | (served at all) | `/`, `/r/…`, `/scroll/…` are the app's HTML page; added after a 200 that browsers downloaded passed the shipped check |
 
 Claim 5 (a stranger can join in ten seconds), whether the ink looks like

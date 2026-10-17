@@ -46,6 +46,11 @@ export function visitorByToken(db: DatabaseSync, token: string | undefined): Per
   return row ? { id: row.id as string, name: row.name as string } : null;
 }
 
+export function visitorById(db: DatabaseSync, id: string): Person | null {
+  const row = db.prepare("SELECT id, name FROM visitors WHERE id = ?").get(id);
+  return row ? { id: row.id as string, name: row.name as string } : null;
+}
+
 export function createVisitor(db: DatabaseSync, name: string): { person: Person; token: string } {
   const person = { id: randomUUID(), name };
   const token = randomBytes(32).toString("base64url");
@@ -146,6 +151,12 @@ function startScroll(db: DatabaseSync, room: string): void {
 
 export function openScroll(db: DatabaseSync, room: string): Scroll {
   return toScroll(db, openScrollRow(db, room));
+}
+
+// Which scroll is open and which text it is, without its characters.
+export function openScrollText(db: DatabaseSync, room: string): { id: number; textId: string } {
+  const row = openScrollRow(db, room);
+  return { id: row.id, textId: row.text_id };
 }
 
 // The most recent writer anywhere in the room: the brush always passes, even

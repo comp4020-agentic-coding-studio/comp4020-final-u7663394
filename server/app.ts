@@ -1,6 +1,6 @@
 // The HTTP surface: the JSON API, one SSE stream per room, /readme/, and the
 // built client. Each write is answered only after it is committed, and only
-// then broadcast.
+// then broadcast and logged.
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
@@ -9,17 +9,19 @@ import { secureHeaders } from "hono/secure-headers";
 import { serveStatic } from "@hono/node-server/serve-static";
 import type { DatabaseSync } from "node:sqlite";
 import { existsSync, readFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { Hub } from "./hub.ts";
+import { log, logRequest, who, type Fields } from "./log.ts";
 import { renderReadme } from "./readme.ts";
 import * as relay from "./relay.ts";
 import { ROOM_PATTERN, type ApiError, type Person, type RoomState } from "../shared/api.ts";
 import { isDraft, type Stroke } from "../shared/strokes.ts";
+import { characters, textById } from "../shared/texts.ts";
 
 const COOKIE = "relay_visitor";
 const YEAR = 60 * 60 * 24 * 365;
 
-type Env = { Variables: { me: Person | null } };
+type Env = { Variables: { me: Person | null; tag: string; refused?: string } };
 
 export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
   const app = new Hono<Env>();
@@ -35,7 +37,20 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     clearTimeout(expiries.get(room));
     const brush = relay.currentBrush(db, room);
     hub.broadcast(room, "brush", { brush, serverNow: Date.now() });
-    if (brush) expiries.set(room, setTimeout(() => announceBrush(room), brush.until - Date.now() + 50));
+    if (brush) {
+      expiries.set(
+        room,
+        setTimeout(() => {
+          log("-", "brush.expire", { room, position: brush.position, ...who(brush.holder) });
+          announceBrush(room);
+        }, brush.until - Date.now() + 50),
+      );
+    }
+  };
+  // "which character": the position and the character itself, to read the log by
+  const at = (scrollId: number, textId: string, position: number): Fields => {
+    const text = textById(textId);
+    return { scroll: scrollId, position, char: text ? characters(text)[position]?.char : undefined };
   };
 
   const roomOf = (c: Context<Env>): string => {
@@ -62,22 +77,38 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
 
   app.onError((err, c) => {
     if (err instanceof relay.RelayError) {
+      c.set("refused", err.code);
       return c.json<ApiError>({ error: err.code, message: err.message }, err.status);
     }
-    console.error(err);
+    c.set("refused", "server_error");
+    console.error(`[${c.get("tag") ?? "-"}] error ${c.req.method} ${c.req.path}`, err);
     return c.json({ error: "server_error", message: "Something went wrong on the server." }, 500);
   });
 
   app.use(secureHeaders());
+  // Who is asking comes from the cookie and nowhere else. Every API request is
+  // logged when its answer goes out, with who sent it and, if it was refused,
+  // why. Accepted live ink is the exception: a draft is kept nowhere, and that
+  // includes the log.
   app.use("/api/*", async (c, next) => {
+    const started = performance.now();
+    c.set("tag", randomBytes(3).toString("hex"));
     c.set("me", relay.visitorByToken(db, getCookie(c, COOKIE)));
     await next();
+    const { method } = c.req;
+    if (method === "GET" && c.res.ok) return;
+    if (method === "PUT" && c.req.path.endsWith("/ink") && c.res.ok) return;
+    const ms = Math.round(performance.now() - started);
+    logRequest(c.get("tag"), method, c.req.path, c.res.status, ms, { ...who(c.get("me")), error: c.get("refused") });
   });
   app.use(
     "/api/*",
     bodyLimit({
       maxSize: 256 * 1024,
-      onError: (c) => c.json<ApiError>({ error: "invalid_strokes", message: "That drawing is too large." }, 413),
+      onError: (c) => {
+        c.set("refused", "too_large");
+        return c.json<ApiError>({ error: "invalid_strokes", message: "That drawing is too large." }, 413);
+      },
     }),
   );
 
@@ -90,8 +121,15 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
   app.put("/api/me", async (c) => {
     const name = relay.normaliseName((await body(c)).name);
     const me = c.get("me");
-    if (me) return c.json({ me: relay.renameVisitor(db, me.id, name) });
+    if (me) {
+      const renamed = relay.renameVisitor(db, me.id, name);
+      log(c.get("tag"), "visitor.rename", { ...who(renamed), was: me.name });
+      c.set("me", renamed);
+      return c.json({ me: renamed });
+    }
     const { person, token } = relay.createVisitor(db, name);
+    log(c.get("tag"), "visitor.join", who(person));
+    c.set("me", person);
     setCookie(c, COOKIE, token, {
       httpOnly: true,
       sameSite: "Lax",
@@ -119,33 +157,48 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     return c.json(state);
   });
 
+  // A room open in a browser. Opening and closing are logged with who, so the
+  // log shows who was watching; someone without a name is "-".
   app.get("/api/rooms/:room/events", (c) => {
     const room = roomOf(c);
-    const who = c.get("me")?.id ?? `anon:${randomUUID()}`;
+    const me = c.get("me");
+    const tag = c.get("tag");
+    const watcher = me?.id ?? `anon:${randomUUID()}`;
     c.header("X-Accel-Buffering", "no");
     return streamSSE(c, async (stream) => {
-      const leave = hub.join(room, who, (event, data) => {
+      const opened = Date.now();
+      const leave = hub.join(room, watcher, (event, data) => {
         stream.writeSSE({ event, data }).catch(() => {});
       });
+      log(tag, "room.open", { room, ...who(me), present: hub.present(room) });
       await stream.writeSSE({ event: "hello", data: JSON.stringify({ present: hub.present(room) }) });
       // proxies close streams that look idle
       const beat = setInterval(() => stream.write(": beat\n\n").catch(() => {}), 15_000);
       await new Promise<void>((resolve) => stream.onAbort(resolve));
       clearInterval(beat);
       leave();
+      // by their name now, in case they renamed while watching
+      const now = me && relay.visitorById(db, me.id);
+      const after = `${Math.round((Date.now() - opened) / 1000)}s`;
+      log(tag, "room.close", { room, ...who(now ?? me), present: hub.present(room), after });
     });
   });
 
   app.post("/api/rooms/:room/brush", async (c) => {
     const room = roomOf(c);
-    const brush = relay.takeBrush(db, room, needMe(c), (await body(c)).position);
+    const me = needMe(c);
+    const brush = relay.takeBrush(db, room, me, (await body(c)).position);
+    const scroll = relay.openScrollText(db, room);
+    log(c.get("tag"), "brush.take", { room, ...at(scroll.id, scroll.textId, brush.position), ...who(me) });
     announceBrush(room);
     return c.json({ brush });
   });
 
   app.delete("/api/rooms/:room/brush", (c) => {
     const room = roomOf(c);
-    relay.putDownBrush(db, room, needMe(c));
+    const me = needMe(c);
+    relay.putDownBrush(db, room, me);
+    log(c.get("tag"), "brush.put_down", { room, ...who(me) });
     announceBrush(room);
     return c.body(null, 204);
   });
@@ -178,10 +231,22 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     const me = needMe(c);
     const { position, strokes, style } = await body(c);
     const written = relay.writeGlyph(db, room, me, position, strokes, style);
-    console.log(`glyph room=${room} scroll=${written.scrollId} position=${written.glyph.position} writer=${me.id}`);
-    hub.broadcast(room, "glyph", { scrollId: written.scrollId, glyph: written.glyph });
+    const { glyph } = written;
+    // what was added and with which brush, never the points themselves
+    log(c.get("tag"), "glyph.add", {
+      room,
+      scroll: written.scrollId,
+      position: glyph.position,
+      char: glyph.char,
+      strokes: glyph.strokes.length,
+      points: glyph.strokes.reduce((n, s) => n + s.pts.length / 3, 0),
+      brush: `${glyph.style.weight}/${glyph.style.wetness}/${glyph.style.speed}`,
+      ...who(me),
+    });
+    hub.broadcast(room, "glyph", { scrollId: written.scrollId, glyph });
     if (written.finished) {
-      console.log(`scroll finished room=${room} scroll=${written.finished.finishedId}`);
+      const writers = new Set(relay.getScroll(db, written.finished.finishedId).glyphs.map((g) => g.writer.id)).size;
+      log(c.get("tag"), "scroll.finish", { room, scroll: written.finished.finishedId, writers, ...who(me) });
       hub.broadcast(room, "scroll", written.finished);
     }
     announceBrush(room);
@@ -194,7 +259,10 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     return c.json({ scroll: relay.getScroll(db, id) });
   });
 
-  app.all("/api/*", (c) => c.json<ApiError>({ error: "not_found", message: "No such endpoint." }, 404));
+  app.all("/api/*", (c) => {
+    c.set("refused", "not_found");
+    return c.json<ApiError>({ error: "not_found", message: "No such endpoint." }, 404);
+  });
 
   // ---- pages ----
 
