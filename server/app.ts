@@ -14,6 +14,7 @@ import { Hub } from "./hub.ts";
 import { log, logRequest, who, type Fields } from "./log.ts";
 import { renderReadme } from "./readme.ts";
 import * as relay from "./relay.ts";
+import * as cloth from "./cloth.ts";
 import { ROOM_PATTERN, type ApiError, type Person, type RoomState } from "../shared/api.ts";
 import { isDraft, type Stroke } from "../shared/strokes.ts";
 import { characters, textById } from "../shared/texts.ts";
@@ -251,6 +252,42 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     }
     announceBrush(room);
     return c.json(written, 201);
+  });
+
+  // ---- the water cloth (doc/adr/0006-the-water-cloth.md) ----
+
+  app.get("/api/rooms/:room/cloth", (c) => {
+    const room = roomOf(c);
+    return c.json({ strokes: cloth.wetStrokes(db, room), serverNow: Date.now() });
+  });
+
+  // One stroke, sent when the pen lifts. Logged with who, which square and
+  // how many points, never the points.
+  app.post("/api/rooms/:room/cloth", async (c) => {
+    const room = roomOf(c);
+    const me = needMe(c);
+    const { char, stroke, style } = await body(c);
+    const wet = cloth.writeOnCloth(db, room, me, char, stroke, style);
+    log(c.get("tag"), "cloth.write", {
+      room,
+      char: wet.char,
+      points: wet.stroke.pts.length / 3,
+      dries: `${Math.round((wet.driesAt - wet.writtenAt) / 1000)}s`,
+      ...who(me),
+    });
+    hub.broadcast(room, "cloth", { stroke: wet, serverNow: Date.now() });
+    return c.json({ stroke: wet }, 201);
+  });
+
+  // Dry your own strokes now. Who is asking comes from the cookie, so any ids
+  // in the body are ignored: nobody wipes anyone else's.
+  app.delete("/api/rooms/:room/cloth", (c) => {
+    const room = roomOf(c);
+    const me = needMe(c);
+    const ids = cloth.dryMine(db, room, me);
+    log(c.get("tag"), "cloth.wipe", { room, strokes: ids.length, ...who(me) });
+    hub.broadcast(room, "cloth_wipe", { writer: me, ids });
+    return c.json({ ids });
   });
 
   app.get("/api/scrolls/:id", (c) => {

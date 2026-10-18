@@ -61,6 +61,27 @@ const MIGRATIONS: string[] = [
   CREATE TRIGGER glyphs_never_removed BEFORE DELETE ON glyphs
   BEGIN SELECT RAISE(ABORT, 'a written character is never removed'); END;
   `,
+  // The water cloth (doc/adr/0006-the-water-cloth.md): strokes written while
+  // waiting, kept only until they dry. Nobody restyles, moves or re-signs a
+  // wet stroke; drying (DELETE) is the only change.
+  `
+  CREATE TABLE cloth_strokes (
+    id          INTEGER PRIMARY KEY,
+    room        TEXT NOT NULL REFERENCES rooms(slug),
+    char        TEXT NOT NULL,
+    writer_id   TEXT NOT NULL REFERENCES visitors(id),
+    writer_name TEXT NOT NULL,
+    stroke      TEXT NOT NULL,
+    style_weight  REAL NOT NULL CHECK (style_weight BETWEEN 0 AND 1),
+    style_wetness REAL NOT NULL CHECK (style_wetness BETWEEN 0 AND 1),
+    style_speed   REAL NOT NULL CHECK (style_speed BETWEEN 0 AND 1),
+    written_at  INTEGER NOT NULL,
+    dries_at    INTEGER NOT NULL CHECK (dries_at > written_at AND dries_at - written_at <= 90000)
+  ) STRICT;
+  CREATE INDEX cloth_by_room ON cloth_strokes(room, dries_at);
+  CREATE TRIGGER cloth_never_changes BEFORE UPDATE ON cloth_strokes
+  BEGIN SELECT RAISE(ABORT, 'a stroke on the cloth is never changed, only dried'); END;
+  `,
 ];
 
 export function openDatabase(dataDir: string): DatabaseSync {

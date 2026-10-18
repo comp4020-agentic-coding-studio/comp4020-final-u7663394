@@ -61,6 +61,28 @@ export interface RoomEvents {
   scroll: { finishedId: number; scroll: Scroll };
   // live ink: the brush holder's draft as it is now, relayed and never stored
   ink: InkDraft;
+  // the water cloth (doc/adr/0006-the-water-cloth.md): a stroke written on
+  // it, and someone drying their own strokes early
+  cloth: { stroke: ClothStroke; serverNow: number };
+  cloth_wipe: { writer: Person; ids: number[] };
+}
+
+// One stroke on a room's water cloth, signed while it is wet. The server says
+// when it dries (server clock, ms); after that it is gone.
+export interface ClothStroke {
+  id: number;
+  // the character of the room's line whose square it was written on
+  char: string;
+  writer: Person;
+  stroke: Stroke;
+  style: BrushStyle;
+  writtenAt: number;
+  driesAt: number;
+}
+
+export interface ClothState {
+  strokes: ClothStroke[];
+  serverNow: number;
 }
 
 export interface InkDraft {
@@ -85,6 +107,8 @@ export type ErrorCode =
   | "brush_taken"
   | "not_your_brush"
   | "stale_position"
+  | "cloth_full"
+  | "nothing_wet"
   | "not_found";
 
 export interface ApiError {
@@ -98,3 +122,11 @@ export const NAME_MAX = 20;
 export const BRUSH_HOLD_MS = 3 * 60 * 1000;
 // how often a writer's pad sends its draft to the room, at most
 export const INK_EVERY_MS = 120;
+
+// The water cloth: how long a stroke stays wet (a wetter brush, longer), how
+// many points one stroke may have, and how many may be wet at once.
+export const CLOTH_DRY_MIN_MS = 30_000;
+export const CLOTH_DRY_MAX_MS = 90_000;
+export const CLOTH_MAX_POINTS = 1000;
+export const CLOTH_PER_PERSON = 30;
+export const CLOTH_PER_ROOM = 150;
