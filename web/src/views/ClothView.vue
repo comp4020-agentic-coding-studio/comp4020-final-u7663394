@@ -176,11 +176,23 @@ async function dryMine(): Promise<void> {
   }
 }
 
-// the seal sits where the stroke began
-const sealAt = (s: Stroke): Record<string, string> => ({
-  left: `${(s.pts[0] / INK_BOX) * 100}%`,
-  top: `${(s.pts[1] / INK_BOX) * 100}%`,
-});
+// The name sits where the stroke began, turned inwards near an edge so it
+// stays on the cloth.
+const sealAt = (s: Stroke): Record<string, string> => {
+  const [x, y] = [s.pts[0] / INK_BOX, s.pts[1] / INK_BOX];
+  const dx = x < 0.3 ? "0%" : x > 0.7 ? "-100%" : "-50%";
+  const dy = y < 0.12 ? "30%" : "-130%";
+  return { left: `${x * 100}%`, top: `${y * 100}%`, transform: `translate(${dx}, ${dy})` };
+};
+// A newer stroke by the same writer starting close by already carries their
+// name there, so the older one's label would only sit under it.
+const labelled = (s: ClothStroke): boolean =>
+  !onSquare(s.char).some(
+    (o) =>
+      o.id > s.id &&
+      o.writer.id === s.writer.id &&
+      Math.hypot(o.stroke.pts[0] - s.stroke.pts[0], o.stroke.pts[1] - s.stroke.pts[1]) < 0.1 * INK_BOX,
+  );
 </script>
 
 <template>
@@ -281,7 +293,12 @@ const sealAt = (s: Stroke): Record<string, string> => ({
             </svg>
             <div v-for="s in onSquare(square)" :key="s.id" class="stroke" :style="drying(s)">
               <GlyphInk :strokes="[s.stroke]" :brush-style="s.style" />
-              <span class="sign" :class="{ mine: s.writer.id === me?.id }" :style="sealAt(s.stroke)">{{
+              <span
+                v-if="labelled(s)"
+                class="sign"
+                :class="{ mine: s.writer.id === me?.id }"
+                :style="sealAt(s.stroke)"
+                >{{
                 s.writer.name
               }}</span>
             </div>
@@ -421,6 +438,7 @@ const sealAt = (s: Stroke): Record<string, string> => ({
 .target {
   font-family: var(--brush-font);
   font-size: 1.6rem;
+  line-height: 1;
   vertical-align: -0.12em;
 }
 .go {
@@ -466,6 +484,7 @@ const sealAt = (s: Stroke): Record<string, string> => ({
     #dcd8c8;
   border: 10px solid var(--mount);
   box-shadow: inset 0 0 18px rgb(60 40 20 / 0.18);
+  overflow: hidden;
   touch-action: none;
   cursor: crosshair;
   user-select: none;
@@ -510,7 +529,6 @@ const sealAt = (s: Stroke): Record<string, string> => ({
 }
 .sign {
   position: absolute;
-  transform: translate(-50%, -130%);
   font-size: 0.7rem;
   line-height: 1.2;
   padding: 0 0.3rem;
@@ -518,7 +536,7 @@ const sealAt = (s: Stroke): Record<string, string> => ({
   background: var(--seal);
   color: var(--paper);
   white-space: nowrap;
-  max-width: 8rem;
+  max-width: 7rem;
   overflow: hidden;
   text-overflow: ellipsis;
 }

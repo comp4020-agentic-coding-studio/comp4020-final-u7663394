@@ -20,7 +20,7 @@ const clothPath = computed(() => `${hallPath.value === "/" ? "" : hallPath.value
     </RouterLink>
     <nav aria-label="Site">
       <RouterLink :to="hallPath" exact-active-class="here">{{ room ? "The scroll" : "The hall" }}</RouterLink>
-      <RouterLink :to="clothPath" exact-active-class="here">Water cloth <span lang="zh-Hans" class="zh">水写布</span></RouterLink>
+      <RouterLink :to="clothPath" exact-active-class="here">Water cloth</RouterLink>
       <a href="/readme/">About</a>
       <span v-if="me" class="who">You are <strong>{{ me.name }}</strong></span>
     </nav>
