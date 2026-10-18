@@ -318,8 +318,11 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
   // Only named files: a catch-all here once served the dist/ directory itself
   // for "/", as an octet-stream download (spec/pages.test.ts now checks).
   app.use("/favicon.svg", serveStatic({ root: clientDir }));
+  // the introduction video and its poster; serveStatic answers Range requests
+  app.use("/promo/*", serveStatic({ root: clientDir }));
   app.get("/assets/*", (c) => c.notFound());
-  // Every other path is a page of the client: /, /r/<room>, /scroll/<id>.
+  app.get("/promo/*", (c) => c.notFound());
+  // Every other path is a page of the client: /, /r/<room>, /scroll/<id>, /video.
   app.get("*", (c) => c.html(indexHtml));
 
   return app;
