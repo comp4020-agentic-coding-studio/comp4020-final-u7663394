@@ -88,7 +88,8 @@ describe("writing on the cloth", () => {
   it("never touches the scroll: practice isn't a character", async () => {
     const room = freshRoom();
     const a = await visitor("Ada");
-    await call("POST", `/api/rooms/${room}/cloth`, { as: a, body: { char: await firstChar(room), stroke: STROKE } });
+    const res = await call("POST", `/api/rooms/${room}/cloth`, { as: a, body: { char: await firstChar(room), stroke: STROKE } });
+    expect(res.status).toBe(201);
     const { json } = await call("GET", `/api/rooms/${room}`);
     expect(json.scroll.glyphs).toEqual([]);
     expect(json.brush).toBeNull();
@@ -230,7 +231,8 @@ describe("the cloth, from the inside", () => {
         "UPDATE cloth_strokes SET writer_name = 'Bo'",
         "UPDATE cloth_strokes SET dries_at = dries_at + 999999",
       ]) {
-        expect(() => db.exec(sql), sql).toThrow(/cloth/);
+        // the trigger's own words: "no such table" mustn't pass for a refusal
+        expect(() => db.exec(sql), sql).toThrow(/never changed, only dried/);
       }
     } finally {
       db.close();
