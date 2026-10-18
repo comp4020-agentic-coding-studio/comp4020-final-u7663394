@@ -76,6 +76,12 @@ nav {
 a {
   color: var(--seal);
 }
+nav a.here {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.3em;
+}
 .who {
   color: var(--muted);
 }

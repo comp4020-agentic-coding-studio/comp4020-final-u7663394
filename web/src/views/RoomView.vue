@@ -149,6 +149,7 @@ async function submit(strokes: Stroke[], style: BrushStyle): Promise<void> {
   }
 }
 
+const clothPath = computed(() => (props.room === HALL ? "/cloth" : `/r/${props.room}/cloth`));
 const roomLink = computed(() => `${location.origin}${props.room === HALL ? "/" : `/r/${props.room}`}`);
 const copied = ref(false);
 async function copyLink(): Promise<void> {
@@ -228,12 +229,21 @@ const lineOf = (textId: string): string => textById(textId)?.lines.join("，") ?
                   <span class="char" lang="zh-Hans">{{ chars[othersBrush.position]?.char }}</span>
                 </p>
                 <p>Watch the scroll: their strokes appear as they write them. You can take the next one.</p>
+                <p class="cloth-hint">
+                  Or practise the line with everyone else on the
+                  <RouterLink :to="clothPath">water cloth <span lang="zh-Hans">水写布</span></RouterLink> while you
+                  wait. It tells you when the brush is free.
+                </p>
               </template>
               <template v-else-if="iWroteLast">
                 <p class="big">You wrote the last character. The brush passes on.</p>
                 <p>
                   Nobody writes two in a row, so this scroll needs someone else next. Share this room with
                   someone nearby.
+                </p>
+                <p class="cloth-hint">
+                  Meanwhile, keep writing on the <RouterLink :to="clothPath">water cloth</RouterLink>: it dries, so
+                  there's no turn to wait for.
                 </p>
               </template>
               <template v-else-if="nextChar">
@@ -379,6 +389,13 @@ const lineOf = (textId: string): string => textById(textId)?.lines.join("，") ?
 }
 .big {
   font-size: 1.15rem;
+}
+.cloth-hint {
+  margin-top: 0.5rem !important;
+  padding: 0.45rem 0.7rem;
+  background: var(--paper-deep);
+  border-left: 3px solid var(--mount);
+  font-size: 0.92rem;
 }
 .char {
   font-family: var(--brush-font);
