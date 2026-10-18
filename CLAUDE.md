@@ -54,6 +54,14 @@ supersedes the old one; an accepted ADR is never edited.
   ink: the log is somewhere, and a draft is kept nowhere. Anything a visitor
   chose (a name, a path) goes through `log.ts` quoting so it can't forge a
   line.
+- **Keep what the water cloth was given.** A cloth stroke
+  (`doc/adr/0006-the-water-cloth.md`) dries: the server sets its `dries_at`
+  (30–90 s, wetter is longer), never returns it after that, and deletes it.
+  Until then it is stored exactly as sent, signed with its writer, and only
+  that writer may wipe it early; the database refuses `UPDATE` on
+  `cloth_strokes`. Per-person and per-room limits refuse with `cloth_full`,
+  never by dropping someone else's stroke. Nothing from the cloth ever reaches
+  the scroll, and the cloth has no text, likes or scores.
 - **Grow accounts, feeds, chat, followers or free-text input** beyond a name
   and a room slug. These are deliberately out of scope (README, "What it
   deliberately leaves out"); propose a README change instead of building them.
@@ -71,6 +79,8 @@ supersedes the old one; an accepted ADR is never edited.
   brush and adding a character are announced, single strokes are not.
 - Whoever holds the brush is told on the pad that the room is watching, and
   that the brush dials redraw their strokes without moving them.
+- Waiting on the water cloth never means missing your turn: its page shows
+  who holds the brush, their live ink, and when the brush is free.
 - Text for people who don't read Chinese: pinyin, translation and the model
   character accompany every character to be written.
 - Everything needed to join is on the page from the URL alone: a browser with
@@ -85,10 +95,10 @@ the API, one SSE stream per room (brush, live ink, characters, presence),
 `/readme/` (README rendered server-side) and the client. SQLite via
 `node:sqlite` at `$DATA_DIR/relay.db` (`/data` on Fly). Types shared by both
 sides live in `shared/`. The only in-memory state is who is connected
-(`server/hub.ts`); everything else is in the database. Ink is drawn on
-`<canvas>` by `web/src/ink.ts`, the one place points become ink. The log is
-stdout, one `key=value` line per event through `server/log.ts`; Fly collects
-it.
+(`server/hub.ts`); everything else, wet cloth strokes included, is in the
+database. Ink is drawn on `<canvas>` by `web/src/ink.ts`, the one place points
+become ink. The log is stdout, one `key=value` line per event through
+`server/log.ts`; Fly collects it.
 
 - The server runs under Node's type stripping: erasable TypeScript only (no
   `enum`, no parameter properties, no `namespace`), and imports name the file
