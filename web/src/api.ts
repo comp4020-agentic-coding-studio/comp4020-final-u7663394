@@ -1,7 +1,7 @@
 // Talking to the server. Every failure comes back as an ApiFailure with a code
 // the views can explain; "network" means the request never got an answer.
 import { ref } from "vue";
-import type { ApiError, Brush, Person, RoomState, Scroll } from "../../shared/api.ts";
+import type { ApiError, Brush, ClothState, ClothStroke, Person, RoomState, Scroll } from "../../shared/api.ts";
 import type { BrushStyle, Stroke } from "../../shared/strokes.ts";
 
 export class ApiFailure extends Error {
@@ -46,6 +46,10 @@ export const api = {
     call<unknown>("POST", `${room(name)}/glyphs`, { position, strokes, style }),
   ink: (name: string, draft: { position: number; strokes: Stroke[]; current: Stroke | null; style: BrushStyle }) =>
     call<void>("PUT", `${room(name)}/ink`, draft),
+  cloth: (name: string) => call<ClothState>("GET", `${room(name)}/cloth`),
+  writeOnCloth: (name: string, char: string, stroke: Stroke, style: BrushStyle) =>
+    call<{ stroke: ClothStroke }>("POST", `${room(name)}/cloth`, { char, stroke, style }),
+  dryMine: (name: string) => call<{ ids: number[] }>("DELETE", `${room(name)}/cloth`),
   scroll: (id: number) => call<{ scroll: Scroll }>("GET", `/api/scrolls/${id}`),
   events: (name: string) => new EventSource(`${room(name)}/events`),
 };

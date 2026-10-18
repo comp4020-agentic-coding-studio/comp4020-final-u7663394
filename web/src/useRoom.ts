@@ -9,9 +9,18 @@ import { onUnmounted, ref, watch, type Ref } from "vue";
 import { api, me, meLoaded } from "./api.ts";
 import type { InkDraft, RoomEvents, RoomState } from "../../shared/api.ts";
 
+// What a page other than the room's own does with the room's events: the
+// water cloth (doc/adr/0006-the-water-cloth.md) listens for its strokes on
+// the same stream, and refetches them whenever the room is refetched.
+export interface RoomExtras {
+  cloth?: (data: RoomEvents["cloth"]) => void;
+  clothWipe?: (data: RoomEvents["cloth_wipe"]) => void;
+  refreshed?: () => void;
+}
+
 type Event = { [E in keyof RoomEvents]: { name: E; data: RoomEvents[E] } }[keyof RoomEvents];
 
-export function useRoom(room: Ref<string>) {
+export function useRoom(room: Ref<string>, extras: RoomExtras = {}) {
   const state = ref<RoomState | null>(null);
   const live = ref(false);
   const error = ref<string | null>(null);
@@ -71,6 +80,12 @@ export function useRoom(room: Ref<string>) {
         if (glyph.writer.id !== me.value?.id) announcement.value = `${glyph.writer.name} wrote ${glyph.char}.`;
         break;
       }
+      case "cloth":
+        extras.cloth?.(event.data);
+        break;
+      case "cloth_wipe":
+        extras.clothWipe?.(event.data);
+        break;
       case "scroll":
         justFinished.value = event.data.finishedId;
         announcement.value = "The scroll is finished. A new one has begun.";
@@ -95,6 +110,7 @@ export function useRoom(room: Ref<string>) {
       const pending = buffered;
       buffered = null;
       pending.forEach(apply);
+      extras.refreshed?.();
     } catch (e) {
       buffered = null;
       error.value = (e as Error).message;
@@ -106,7 +122,7 @@ export function useRoom(room: Ref<string>) {
     watchingAs = me.value?.id;
     const es = api.events(room.value);
     source = es;
-    for (const name of ["hello", "presence", "brush", "ink", "glyph", "scroll"] as const) {
+    for (const name of ["hello", "presence", "brush", "ink", "glyph", "scroll", "cloth", "cloth_wipe"] as const) {
       es.addEventListener(name, (msg) => {
         receive({ name, data: JSON.parse((msg as MessageEvent).data) } as Event);
         if (name === "hello") {

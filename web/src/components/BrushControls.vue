@@ -5,7 +5,7 @@
 import { DEFAULT_STYLE, type BrushStyle } from "../../../shared/strokes.ts";
 
 const style = defineModel<BrushStyle>({ required: true });
-defineProps<{ disabled?: boolean }>();
+defineProps<{ disabled?: boolean; hint?: string }>();
 
 const PRESETS: { zh: string; en: string; style: BrushStyle }[] = [
   { zh: "楷", en: "even", style: DEFAULT_STYLE },
@@ -50,8 +50,11 @@ function set(key: Dial, event: Event): void {
   <fieldset class="brush" :disabled="disabled">
     <legend>Your brush</legend>
     <p class="hint">
-      Change it as often as you like before you add the character. It redraws your strokes, never moves them, and the
-      room sees it too.
+      <template v-if="hint">{{ hint }}</template>
+      <template v-else>
+        Change it as often as you like before you add the character. It redraws your strokes, never moves them, and
+        the room sees it too.
+      </template>
     </p>
     <div class="presets" role="group" aria-label="Brush presets">
       <button
