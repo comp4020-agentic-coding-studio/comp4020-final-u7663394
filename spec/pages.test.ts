@@ -5,7 +5,7 @@ import { expect, inject, it } from "vitest";
 
 const baseUrl = inject("baseUrl");
 
-it.each(["/", "/r/table-4", "/scroll/1"])("serves %s as the app's HTML page", async (path) => {
+it.each(["/", "/r/table-4", "/scroll/1", "/cloth", "/r/table-4/cloth"])("serves %s as the app's HTML page", async (path) => {
   const res = await fetch(new URL(path, baseUrl));
   expect(res.status).toBe(200);
   expect(res.headers.get("content-type")).toMatch(/^text\/html/);

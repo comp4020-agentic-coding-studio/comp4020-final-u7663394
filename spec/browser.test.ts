@@ -41,9 +41,9 @@ async function join(page: Page, name: string): Promise<void> {
   await page.getByRole("button", { name: "Join in" }).click();
 }
 
-// A short stroke across the middle of the pad.
-async function stroke(page: Page): Promise<void> {
-  const pad = page.getByRole("img", { name: /Writing pad/ });
+// A short stroke across the middle of the pad (or another surface to draw on).
+async function stroke(page: Page, surface: RegExp = /Writing pad/): Promise<void> {
+  const pad = page.getByRole("img", { name: surface });
   const box = (await pad.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.5);
   await page.mouse.down();
@@ -110,6 +110,50 @@ it.skipIf(!CHROME)(
     await ada.getByText(/You are\s+Ada/).waitFor();
     await ada.waitForTimeout(500);
     expect(streams).toHaveLength(1);
+  },
+  30_000,
+);
+
+// The water cloth (README claim 8, doc/adr/0006-the-water-cloth.md), as a
+// crit plays it: one person writes on the scroll while another, in their own
+// browser, practises on the cloth, reached from the site navigation. The
+// writer's cloth stroke reaches the other screen signed, and the waiter is
+// told the moment the brush comes free, without leaving the cloth.
+it.skipIf(!CHROME)(
+  "lets someone practise on the water cloth while another writes, and tells them when the brush is free",
+  async () => {
+    const room = freshRoom();
+    const ada = await person(1920, 1080);
+    const bo = await person(390, 844);
+
+    await ada.goto(new URL(`/r/${room}`, baseUrl).href);
+    await join(ada, "Ada");
+    await ada.getByRole("button", { name: /Pick up the brush/ }).click();
+    await ada.getByRole("heading", { name: /Write/ }).waitFor();
+
+    // Bo arrives at the room, and goes to the cloth from the site navigation
+    await bo.goto(new URL(`/r/${room}`, baseUrl).href);
+    await bo.getByRole("navigation", { name: "Site" }).getByRole("link", { name: /Water cloth/ }).click();
+    await bo.waitForURL(`**/r/${room}/cloth`);
+    await bo.getByText(/Ada\s+is writing/).waitFor();
+    await join(bo, "Bo");
+    await bo.getByText(/You are\s+Bo/).waitFor();
+
+    // Bo writes on the cloth; a second person's cloth page sees it, signed
+    const cy = await person(1920, 1080);
+    await cy.goto(new URL(`/r/${room}/cloth`, baseUrl).href);
+    await cy.getByText(/Ada\s+is writing/).waitFor();
+    await stroke(bo, /Water cloth for/);
+    await cy.locator(".sign", { hasText: "Bo" }).waitFor({ timeout: 2000 });
+    await expect.poll(() => cy.getByText("On the cloth now").count()).toBe(1);
+
+    // Ada adds her character; Bo, still on the cloth, is told the brush is free
+    await stroke(ada);
+    await ada.getByRole("button", { name: "Add to the scroll" }).click();
+    await bo.getByRole("link", { name: "Go and write it" }).waitFor({ timeout: 2000 });
+    await bo.getByRole("link", { name: "Go and write it" }).click();
+    await bo.getByRole("button", { name: /Pick up the brush/ }).click();
+    await bo.getByRole("heading", { name: /Write/ }).waitFor();
   },
   30_000,
 );
