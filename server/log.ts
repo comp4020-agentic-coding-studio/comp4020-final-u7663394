@@ -4,6 +4,7 @@
 // (doc/adr/0004-who-may-change-what.md):
 //
 //   [3f9c1a] brush.take room=hall scroll=7 position=2 char=毕 user=1705195b as=Ada
+//   [3f9c1a] broadcast room=hall event=brush streams=3 present=2
 //   [3f9c1a] POST /api/rooms/hall/brush 200 3ms user=1705195b as=Ada
 //
 // The tag is the request, so the request and what happened inside it read

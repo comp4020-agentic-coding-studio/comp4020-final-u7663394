@@ -55,6 +55,39 @@ it("tells two people apart, and says what each of them did", async () => {
   expect(adas.some((l) => l.includes("DELETE") && l.includes("error=not_your_brush"))).toBe(true);
 });
 
+// At a crit the log alone has to show a change reaching the others: who did
+// it, then that it went out to everyone watching, and what a latecomer was
+// sent when they opened the room.
+it("says when a change goes out to the room, and what one person was sent", async () => {
+  const room = freshRoom();
+  const [a, b] = [await visitor("Ada"), await visitor("Bo")];
+  const watching = await openStream(server.baseUrl, room, b);
+  try {
+    const from = server.lines.length;
+    await call("POST", `/api/rooms/${room}/brush`, { as: a, body: { position: 0 } });
+    const draft = { position: 0, strokes: [DRAWING[1]], current: null };
+    expect((await call("PUT", `/api/rooms/${room}/ink`, { as: a, body: draft })).status).toBe(204);
+    await call("POST", `/api/rooms/${room}/glyphs`, { as: a, body: { position: 0, strokes: DRAWING } });
+    await call("GET", `/api/rooms/${room}`, { as: b });
+    await settle();
+    const lines = server.lines.slice(from);
+
+    // the brush and the character each went out under the request that made them
+    const take = lines.find((l) => /\bbrush\.take\b/.test(l) && l.includes(`room=${room}`))!;
+    const tag = take.match(/^\[([0-9a-f]{6})\] /)![1];
+    expect(lines.some((l) => l.startsWith(`[${tag}] broadcast room=${room} event=brush streams=1 present=1`))).toBe(true);
+    expect(lines.some((l) => / broadcast /.test(l) && l.includes(`room=${room} event=glyph streams=1`))).toBe(true);
+    // the draft reached Bo, but a draft is kept nowhere, the log included
+    await watching.waitFor((e) => e.event === "ink");
+    expect(lines.some((l) => l.includes("event=ink"))).toBe(false);
+    // what Bo was sent on (re)opening the room, and that it was Bo
+    const snapshot = linesOf(b.id, from).find((l) => /\broom\.snapshot\b/.test(l));
+    expect(snapshot).toMatch(new RegExp(`room=${room} scroll=\\d+ glyphs=1 brush=- present=1 `));
+  } finally {
+    watching.close();
+  }
+});
+
 it("ties each change to the request it happened in", async () => {
   const room = freshRoom();
   const a = await visitor("Ada");

@@ -34,10 +34,10 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
 
   // A timer per room so everyone sees a brush that runs out put back down.
   const expiries = new Map<string, NodeJS.Timeout>();
-  const announceBrush = (room: string): void => {
+  const announceBrush = (room: string, tag = "-"): void => {
     clearTimeout(expiries.get(room));
     const brush = relay.currentBrush(db, room);
-    hub.broadcast(room, "brush", { brush, serverNow: Date.now() });
+    hub.broadcast(room, "brush", { brush, serverNow: Date.now() }, tag);
     if (brush) {
       expiries.set(
         room,
@@ -143,6 +143,9 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
 
   // ---- rooms ----
 
+  // The room as it is now, sent to one person: on opening the page and after
+  // every reconnect. Logged with who it went to and what it held, so a late
+  // joiner or a reconnect can be read back as "caught up to here".
   app.get("/api/rooms/:room", (c) => {
     const room = roomOf(c);
     const state: RoomState = {
@@ -155,6 +158,14 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
       me: c.get("me"),
       serverNow: Date.now(),
     };
+    log(c.get("tag"), "room.snapshot", {
+      room,
+      scroll: state.scroll.id,
+      glyphs: state.scroll.glyphs.length,
+      brush: state.brush ? state.brush.holder.id.slice(0, 8) : "-",
+      present: state.present,
+      ...who(c.get("me")),
+    });
     return c.json(state);
   });
 
@@ -168,9 +179,14 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     c.header("X-Accel-Buffering", "no");
     return streamSSE(c, async (stream) => {
       const opened = Date.now();
-      const leave = hub.join(room, watcher, (event, data) => {
-        stream.writeSSE({ event, data }).catch(() => {});
-      });
+      const leave = hub.join(
+        room,
+        watcher,
+        (event, data) => {
+          stream.writeSSE({ event, data }).catch(() => {});
+        },
+        tag,
+      );
       log(tag, "room.open", { room, ...who(me), present: hub.present(room) });
       await stream.writeSSE({ event: "hello", data: JSON.stringify({ present: hub.present(room) }) });
       // proxies close streams that look idle
@@ -191,7 +207,7 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     const brush = relay.takeBrush(db, room, me, (await body(c)).position);
     const scroll = relay.openScrollText(db, room);
     log(c.get("tag"), "brush.take", { room, ...at(scroll.id, scroll.textId, brush.position), ...who(me) });
-    announceBrush(room);
+    announceBrush(room, c.get("tag"));
     return c.json({ brush });
   });
 
@@ -200,7 +216,7 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     const me = needMe(c);
     relay.putDownBrush(db, room, me);
     log(c.get("tag"), "brush.put_down", { room, ...who(me) });
-    announceBrush(room);
+    announceBrush(room, c.get("tag"));
     return c.body(null, 204);
   });
 
@@ -244,13 +260,13 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
       brush: `${glyph.style.weight}/${glyph.style.wetness}/${glyph.style.speed}`,
       ...who(me),
     });
-    hub.broadcast(room, "glyph", { scrollId: written.scrollId, glyph });
+    hub.broadcast(room, "glyph", { scrollId: written.scrollId, glyph }, c.get("tag"));
     if (written.finished) {
       const writers = new Set(relay.getScroll(db, written.finished.finishedId).glyphs.map((g) => g.writer.id)).size;
       log(c.get("tag"), "scroll.finish", { room, scroll: written.finished.finishedId, writers, ...who(me) });
-      hub.broadcast(room, "scroll", written.finished);
+      hub.broadcast(room, "scroll", written.finished, c.get("tag"));
     }
-    announceBrush(room);
+    announceBrush(room, c.get("tag"));
     return c.json(written, 201);
   });
 
@@ -258,7 +274,9 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
 
   app.get("/api/rooms/:room/cloth", (c) => {
     const room = roomOf(c);
-    return c.json({ strokes: cloth.wetStrokes(db, room), serverNow: Date.now() });
+    const strokes = cloth.wetStrokes(db, room);
+    log(c.get("tag"), "cloth.snapshot", { room, strokes: strokes.length, ...who(c.get("me")) });
+    return c.json({ strokes, serverNow: Date.now() });
   });
 
   // One stroke, sent when the pen lifts. Logged with who, which square and
@@ -275,7 +293,7 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
       dries: `${Math.round((wet.driesAt - wet.writtenAt) / 1000)}s`,
       ...who(me),
     });
-    hub.broadcast(room, "cloth", { stroke: wet, serverNow: Date.now() });
+    hub.broadcast(room, "cloth", { stroke: wet, serverNow: Date.now() }, c.get("tag"));
     return c.json({ stroke: wet }, 201);
   });
 
@@ -286,7 +304,7 @@ export function createApp(db: DatabaseSync, clientDir = "dist"): Hono<Env> {
     const me = needMe(c);
     const ids = cloth.dryMine(db, room, me);
     log(c.get("tag"), "cloth.wipe", { room, strokes: ids.length, ...who(me) });
-    hub.broadcast(room, "cloth_wipe", { writer: me, ids });
+    hub.broadcast(room, "cloth_wipe", { writer: me, ids }, c.get("tag"));
     return c.json({ ids });
   });
 
