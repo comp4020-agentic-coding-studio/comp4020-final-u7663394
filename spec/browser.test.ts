@@ -63,7 +63,9 @@ it.skipIf(!CHROME)(
     await ada.goto(url);
     await join(ada, "Ada");
     await ada.getByRole("button", { name: /Pick up the brush/ }).click();
-    await ada.getByRole("heading", { name: /Write/ }).waitFor();
+    // wait for the pad itself: a "Write" heading matched "Write with others",
+    // on the page all along, before the pad came (or both, failing on CI)
+    await ada.getByRole("img", { name: /Writing pad/ }).waitFor();
 
     // Bo arrives while Ada is writing, and can still join from the page
     await bo.goto(url);
@@ -84,7 +86,7 @@ it.skipIf(!CHROME)(
 
     // and Bo, not Ada, may write the next one
     await bo.getByRole("button", { name: /Pick up the brush/ }).click();
-    await bo.getByRole("heading", { name: /Write/ }).waitFor();
+    await bo.getByRole("img", { name: /Writing pad/ }).waitFor();
     await ada.getByText(/Bo\s+is writing/).waitFor({ timeout: 2000 });
     await expect.poll(() => ada.getByRole("button", { name: /Pick up the brush/ }).count()).toBe(0);
   },
@@ -129,7 +131,7 @@ it.skipIf(!CHROME)(
     await ada.goto(new URL(`/r/${room}`, baseUrl).href);
     await join(ada, "Ada");
     await ada.getByRole("button", { name: /Pick up the brush/ }).click();
-    await ada.getByRole("heading", { name: /Write/ }).waitFor();
+    await ada.getByRole("img", { name: /Writing pad/ }).waitFor();
 
     // Bo arrives at the room, and goes to the cloth from the site navigation
     await bo.goto(new URL(`/r/${room}`, baseUrl).href);
@@ -153,7 +155,7 @@ it.skipIf(!CHROME)(
     await bo.getByRole("link", { name: "Go and write it" }).waitFor({ timeout: 2000 });
     await bo.getByRole("link", { name: "Go and write it" }).click();
     await bo.getByRole("button", { name: /Pick up the brush/ }).click();
-    await bo.getByRole("heading", { name: /Write/ }).waitFor();
+    await bo.getByRole("img", { name: /Writing pad/ }).waitFor();
   },
   30_000,
 );
