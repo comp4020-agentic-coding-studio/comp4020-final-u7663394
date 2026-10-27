@@ -1,58 +1,58 @@
 # Process overview
 
-_Current as of week 11. Rewritten, not appended to, at each crit. The crit 10 version is the one at the `crit-10` tag._
+_Current as of week 12 final version. Rewritten, not appended to, at each crit._
 
 ## From the brief to an idea
 
-My first idea was a shared drawing canvas, but r/place showed that an open canvas becomes a fight over space. So I chose a relay: one line of classical Chinese poetry, written one character at a time by different people, with each person's handwriting kept. I wrote this in `IDEA.md` ([`9abbf52`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/9abbf52)) before choosing any technology, and the README came next ([`2d5a9fc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/2d5a9fc)). Its claims became rules in `CLAUDE.md` and checks in `spec/`.
+My first idea was a shared drawing canvas, but r/place showed me that people would fight over space. So I decided to let different people write a line of classical Chinese poetry, one character each, and keep their handwriting. I wrote the idea in `IDEA.md` ([`9abbf52`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/9abbf52)) before choosing the technology, then wrote the README ([`2d5a9fc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/2d5a9fc)). I later turned these ideas into rules in `CLAUDE.md` and tests in `spec/`.
 
 ## Why this stack
 
-The full record is [ADR 0001](doc/adr/0001-vue-node-sqlite-sse.md) ([`20dbce0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/20dbce0)). The course gives one 256 MB machine and one volume, and the traffic is lopsided: one person writes at a time, but every write has to reach everyone watching.
+I explained my choices in [ADR 0001](doc/adr/0001-vue-node-sqlite-sse.md) ([`20dbce0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/20dbce0)). The course provides one 256 MB machine and one volume. Only one person writes at a time, but everyone watching needs to see each update.
 
-- **SQLite on the volume** (`node:sqlite`), not JSON files or Postgres. The rules that matter live in constraints, transactions and triggers.
-- **Server-Sent Events plus ordinary requests**, not WebSockets. Only the fan-out needs pushing, and `EventSource` reconnects by itself.
-- **Vue 3 and Hono on Node 24, TypeScript run directly.** I can read and correct every line the agent writes.
-- **Ink on `<canvas>`** ([ADR 0003](doc/adr/0003-the-writers-brush.md)), because SVG can't do dry-brush streaks.
+- **SQLite on the volume** (`node:sqlite`). I used database constraints, transactions and triggers to keep the data correct.
+- **Server-Sent Events and normal requests**. SSE sends updates to everyone and `EventSource` reconnects automatically.
+- **Vue 3 and Hono on Node 24, with TypeScript running directly.** The code is simple enough for me to understand and fix.
+- **Ink on `<canvas>`** ([ADR 0003](doc/adr/0003-the-writers-brush.md)), because it supports dry-brush effects better than SVG.
 
-One process can't scale past one machine, which fits the "one room, one table" scale.
+The app runs on one machine, which is enough for this small shared writing space.
 
 ## Directing the agent
 
-Each step started with a product decision, written as an ADR before any code. Crit 8: *pass the brush* and rooms. Crit 9: **live ink**, where watchers see the strokes but the draft is never stored ([ADR 0002](doc/adr/0002-live-ink.md), [`36c3712`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/36c3712)). Then the writer's own brush, kept with each character ([`40c76db`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/40c76db)).
+I made each decision in an ADR before writing code. In Crit 8, I added *pass the brush* and rooms. In Crit 9, I added **live ink**, so others can watch the writing without saving the draft ([ADR 0002](doc/adr/0002-live-ink.md), [`36c3712`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/36c3712)). I also improved the brush and saved each person's handwriting ([`40c76db`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/40c76db)).
 
-For crit 10, "fly by instruments", I had Claude Code check the app against the crit first, including the deployed log. The log was nearly empty and "put down the brush" answered 204 to anyone. The main question was what the log calls a person. An opaque id is safest, but `flyctl logs` only keeps recent lines, so I would lose which id was who, and names aren't unique. The log uses both: `user=` is a short id and `as=` is the seal name, which is already public on the scroll ([ADR 0004](doc/adr/0004-who-may-change-what.md), [`2e345a3`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/2e345a3)). Live ink, cookies and stroke points are never logged, because the README promises a draft is kept nowhere.
+For Crit 10, "fly by instruments", I asked Claude Code to check the app and its deployed logs. The logs were almost empty, and anyone could use "put down the brush" and get a 204 response. I needed to decide how to identify users in logs. IDs are safer, but `flyctl logs` only shows recent logs, and names can repeat. So I used both: `user=` for a short ID and `as=` for the public seal name ([ADR 0004](doc/adr/0004-who-may-change-what.md), [`2e345a3`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/2e345a3)). I never log live ink, cookies or stroke points because the README promises not to save drafts.
 
 ## The water cloth: making the wait part of the app
 
-The relay makes people wait: one person writes and everyone else watches, sometimes for minutes. I asked Claude Code for a shared canvas where everyone could draw while waiting. Before writing code, it pointed out that my README rules out a free canvas because of r/place, and the brief takes marks off for features without reasons. So I could drop that part of the README, or build a canvas that fits it.
+In the relay, only one person writes while others may wait for minutes. I asked Claude Code to add a shared drawing canvas. Before coding, it reminded me that my README rejected free canvases because of r/place, and the brief requires reasons for features. I could change the README or design something that followed its idea.
 
-I chose the second: a **water cloth** (水写布) for each room ([ADR 0006](doc/adr/0006-the-water-cloth.md), [`902ed15`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/902ed15)). In Chinese parks people write poems on the pavement in water (地书), and the characters dry within minutes. Vermeeren (2022), who wrote with them in Beijing, found they refused to use the vanishing water for anything rude. On the cloth, everyone with a name writes at once, each stroke is signed while wet, and it dries within 90 seconds. Nothing is kept, so there is nothing to fight over. The README now says "no canvas that keeps" instead of "no free canvas" ([`86c35e3`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/86c35e3)).
+I chose a **water cloth** (水写布) for each room ([ADR 0006](doc/adr/0006-the-water-cloth.md), [`902ed15`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/902ed15)). In Chinese parks, people write poetry on the ground with water, which dries quickly. Vermeeren (2022) found that people in Beijing avoided writing rude things with water. On my cloth, everyone with a name can write together. Each stroke shows its writer and disappears after 90 seconds. Nothing stays, so people have no reason to fight over space. I changed the README from "no free canvas" to "no canvas that keeps" ([`86c35e3`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/86c35e3)).
 
-The agent's ADR also made smaller choices:
+The ADR also explains some design choices:
 
-- One square per character of the room's line, so people practise what comes next.
-- Its own page, linked from the navigation, since a phone has no space on the room page. It shows who holds the brush and their live ink, and says when the brush is free, so nobody misses a turn.
-- A stroke is sent when the pen lifts, not point by point. Many people draw at once here, and streaming every point would multiply the live-ink traffic.
-- Wet strokes live in SQLite, so a restart doesn't wipe them and the database refuses changes.
+- One square for each character in the poem, so users can practise the next character.
+- A separate page in the navigation, because phones have limited space. It shows the current writer, live ink and when the brush is free.
+- Strokes are sent when the pen lifts, reducing network traffic when many people draw.
+- Wet strokes are stored in SQLite, so they survive restarts and database rules protect them.
 
-The cost is that free drawing can be rude; it carries a name and is gone in 90 seconds, so there is no moderation.
+People may still draw rude things, but each stroke has a name and disappears in 90 seconds. I did not add moderation.
 
 ## Grounding: rules and checks first
 
-The order is the same every time: ADR, README claim, rules in `CLAUDE.md`, then checks that fail before the fix. For crit 10 that was claim 7 ([`d3e2143`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/d3e2143)), the rules ([`fdb3932`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/fdb3932)), then `access.test.ts` and `log.test.ts`, with the fixes after ([`bb3b0ed`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/bb3b0ed), [`5b44cb0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/5b44cb0)). For the cloth it was claim 8, the rules ([`9d14df2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/9d14df2)), then `spec/cloth.test.ts` before the server code ([`86056b7`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/86056b7)). The page ([`096c2bc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/096c2bc)) has a browser check: one person writes on the scroll, another practises on the cloth, a third sees that stroke signed, and the waiting person is told when the brush is free ([`d3abc93`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/d3abc93)).
+I followed the same order each time: write an ADR, add a README claim, update `CLAUDE.md`, then write tests before fixing the code. For Crit 10, I added claim 7 ([`d3e2143`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/d3e2143)), updated the rules ([`fdb3932`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/fdb3932)), and wrote `access.test.ts` and `log.test.ts` before making the fixes ([`bb3b0ed`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/bb3b0ed), [`5b44cb0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/5b44cb0)). For the water cloth, I added claim 8, updated the rules ([`9d14df2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/9d14df2)), and wrote `spec/cloth.test.ts` before the server code ([`86056b7`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/86056b7)). I also added a browser test for the page ([`096c2bc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/096c2bc)). It checks that one user writes on the scroll, another uses the cloth, a third sees the signed stroke, and waiting users know when the brush is free ([`d3abc93`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/d3abc93)).
 
 ## Corrections
 
-The biggest problems were the ones green checks didn't show.
+The biggest problems were missed by the passing tests.
 
-- **Nowhere to join.** In crit 10, a second person who arrived while someone was writing saw no name form. Every API check passed. `browser.test.ts` now plays the crit in two browser contexts at both viewports; it failed, then passed after the fix ([`877aeb2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/877aeb2)).
-- **Two nobodies.** In that run's log, both people were `user=-`: the page opened its stream before they chose a name. The fix ([`01dda7a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/01dda7a)) went too far and opened two streams per load, which a reload check caught ([`786bdae`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/786bdae)).
-- **Checks that passed without the feature.** The agent first reported that all the new cloth checks failed against the old server. While updating this file, it checked again: 2 of 13 had passed. One accepted "no such table" as the database refusing a change, and one never checked that its stroke was accepted. Both were tightened, and all 13 now fail against the code from before the cloth ([`7952331`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/7952331)). "Watch it fail" means every check, not the file.
+- **No way to join.** In Crit 10, a second user could not enter their name while someone else was writing. All API tests passed, but `browser.test.ts` found the problem by testing two users on desktop and mobile. It passed after the fix ([`877aeb2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/877aeb2)).
+- **Two unknown users.** Both users appeared as `user=-` in the logs because the stream opened before they entered names. My first fix ([`01dda7a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/01dda7a)) created two streams per page load. Another reload test found this ([`786bdae`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/786bdae)).
+- **Tests passing without the feature.** The agent first said all cloth tests failed on the old server. I checked again and found 2 of 13 passed. One treated "no such table" as a valid database rejection, and another never checked if the stroke was accepted. I fixed both tests, and all 13 now fail on the old code ([`7952331`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-u7663394/commit/7952331)). I learned that every test must fail before the feature is added.
 
 ## How I know it works, and what I don't know yet
 
-- `pnpm check`: 62 checks pass, 16 of them for the cloth.
-- Two-browser runs at 1920×1080 and 390×844, checked as screenshots and in the server log.
+- `pnpm check`: all 62 tests pass, including 16 for the cloth.
+- Tested with two browsers at 1920×1080 and 390×844, using screenshots and server logs.
 
-I don't know yet if people will use the cloth while they wait or just watch the scroll, or if 30–90 seconds is the right drying time. That needs real users at the showcase.
+I still do not know if people will use the cloth while waiting or just watch others write. I also need to test if 30–90 seconds is a good drying time. I hope to find out from real users at the showcase.
